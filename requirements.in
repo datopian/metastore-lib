@@ -1,0 +1,6 @@
+pygithub==1.*
+typing==3.7.*
+typing-extensions==3.7.*
+
+# We want the latest timezone database so keep this with no pinned version
+pytz
