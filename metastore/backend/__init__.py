@@ -3,7 +3,7 @@
 from importlib import import_module
 from typing import Any, Dict
 
-BACKEND_CLASSES = {'github': 'metastore.backend.github_backend:GithubBackend'}
+BACKEND_CLASSES = {'github': 'metastore.backend.gh:GitHubStorage'}
 
 
 class StorageBackend(object):
@@ -21,7 +21,7 @@ def create_metastore(backend_type, options):
     # TODO: use importlib and our BACKEND_CLASSES dict, it's nicer
 
     if backend_type == 'github':
-        from .github_backend import GithubBackend
-        return GithubBackend(**options)
+        from .gh import GitHubStorage
+        return GitHubStorage(**options)
     else:
         raise ValueError("Unknown backend type: {}".format(type))

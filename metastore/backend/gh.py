@@ -11,7 +11,7 @@ from . import StorageBackend
 log = logging.getLogger(__name__)
 
 
-class GithubBackend(StorageBackend):
+class GitHubStorage(StorageBackend):
 
     def __init__(self, **config):
         self.config = config
