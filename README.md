@@ -157,7 +157,7 @@ License
 -------
 Copyright (C) 2020, Viderum, Inc. 
 
-Giftless is free / open source software and is distributed under the terms of 
+metastore-lib is free / open source software and is distributed under the terms of 
 the MIT license. See [LICENSE](LICENSE) for details.  
 
  [1]: http://specs.frictionlessdata.io/data-package/
