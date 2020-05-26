@@ -15,6 +15,7 @@ PYTEST_EXTRA_ARGS :=
 
 VERSION := $(shell cat $(VERSION_FILE))
 SOURCE_FILES := $(shell find $(PACKAGE_DIRS) $(TESTS_DIR) -type f -name "*.py")
+TEST_PATHS := $(PACKAGE_DIRS) $(TESTS_DIR)
 SENTINELS := .make-cache
 DIST_DIR := dist
 
@@ -24,9 +25,8 @@ default: help
 requirements: dev-requirements.txt requirements.txt
 
 ## Run all tests
-test: dev-requirements.txt
-	$(PIP) install -r dev-requirements.txt -e .
-	$(PYTEST) $(PYTEST_EXTRA_ARGS) $(PACKAGE_DIRS) $(TESTS_DIR)
+test: $(SENTINELS)/dev-setup
+	$(PYTEST) $(PYTEST_EXTRA_ARGS) $(TEST_PATHS)
 
 ## Tag and push a release to pypi
 release: $(SENTINELS)/dist
@@ -70,6 +70,18 @@ $(SENTINELS)/dist: $(SENTINELS)/dist-setup $(DIST_DIR)/$(PACKAGE_NAME)-$(VERSION
 
 $(DIST_DIR)/$(PACKAGE_NAME)-$(VERSION).tar.gz $(DIST_DIR)/$(PACKAGE_NAME)-$(VERSION)-py3-none-any.whl: $(SOURCE_FILES) setup.py | $(SENTINELS)/dist-setup
 	$(PYTHON) setup.py sdist bdist_wheel
+
+$(SENTINELS)/install: requirements.txt | $(SENTINELS)
+	$(PIP) install -r requirements.txt
+	@touch $@
+
+$(SENTINELS)/install-dev: dev-requirements.txt | $(SENTINELS)
+	$(PIP) install -r dev-requirements.txt
+	$(PIP) install -e .
+	@touch $@
+
+$(SENTINELS)/dev-setup: requirements $(SENTINELS)/install $(SENTINELS)/install-dev setup.py | $(SENTINELS)
+	@touch $@
 
 # Help related variables and targets
 

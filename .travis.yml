@@ -6,9 +6,9 @@ python:
   - 3.7
   - 3.8
 
-#env:
-#  global:
-#    - CC_TEST_REPORTER_ID=cca5a6743728de037cb47d4a845e35c682b4469c0f9c52851f4f3824dd471f87
+env:
+  global:
+    - CC_TEST_REPORTER_ID=fde8ee1407f0a9d2c1ecf30dc37fa718feb2381526d89b2c9d8c0cb6fba6e2ad
 
 install:
   - pip install -r requirements.txt
@@ -22,7 +22,7 @@ script: make test PYTEST_EXTRA_ARGS="--cov=metastore"
 
 after_script:
   - coverage xml
-#  - ./cc-test-reporter after-build --exit-code $TRAVIS_TEST_RESULT
+  - ./cc-test-reporter after-build --exit-code $TRAVIS_TEST_RESULT
 
 cache:
   directories:

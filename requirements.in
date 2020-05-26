@@ -1,6 +1,9 @@
+six==1.*
 pygithub==1.*
 typing==3.7.*
 typing-extensions==3.7.*
+fs==2.*
+python-dateutil==2.*
 
 # We want the latest timezone database so keep this with no pinned version
 pytz
