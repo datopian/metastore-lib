@@ -2,8 +2,8 @@ metastore-lib: metadata storage library for datapackages
 ========================================================
 
 [![Build Status](https://travis-ci.org/datopian/metastore-lib.svg?branch=master)](https://travis-ci.org/datopian/metastore-lib)
-<!-- [![Maintainability](https://api.codeclimate.com/v1/badges/58f05c5b5842c8bbbdbb/maintainability)](https://codeclimate.com/github/datopian/metastore-lib/maintainability) -->
-<!-- [![Test Coverage](https://api.codeclimate.com/v1/badges/58f05c5b5842c8bbbdbb/test_coverage)](https://codeclimate.com/github/datopian/metastore-lib/test_coverage) -->
+[![Maintainability](https://api.codeclimate.com/v1/badges/f53acd8aa367512130c3/maintainability)](https://codeclimate.com/github/datopian/metastore-lib/maintainability)
+[![Test Coverage](https://api.codeclimate.com/v1/badges/f53acd8aa367512130c3/test_coverage)](https://codeclimate.com/github/datopian/metastore-lib/test_coverage)
 
 A Python library for abstracting metadata storage for [datapackage.json][1]
 packages. 
@@ -46,13 +46,12 @@ with a corresponding `datapackage.json` file and LFS pointer files for
 resources.
 
 The returned `package_info` will be an object with some information about
-the stored package:
+the stored package revision:
 
 ```python
-class PackageInfo:
-    id: str = "..."
+class PackageRevisionInfo:
+    package_id: str = "..."
     revision: str = "..."
-    tag: str = None
     package: Dict = {"name": "mypackage",
                      "version": "1.0.0",    
                      "resources": [
@@ -88,10 +87,11 @@ revisions = metastore.revision_list(package_id)
 Each returned object in the list represents a single revision:
 
 ```python
-class RevisionInfo:
+class PackageRevisionInfo:
     package_id: str = "..."
     revision: str = "..."
     created: datetime = ... # the revision creation timestamp
+    
 ```
 
 #### Fetching a Dataset Revision
@@ -125,7 +125,7 @@ tag_info = metastore.tag_create(package_id,
                                 name='ver-1.0.1')
 ```
 
-This will return a new `RevisionInfo` object, with the `tag` attribute set to
+This will return a new `TagInfo` object, with the `name` attribute set to
 `'ver-1.0.1'`. 
 
 #### Listing Tags 
@@ -136,7 +136,7 @@ To get a list of all tags for a package:
 tags = metastore.tag_list(package_id)
 ```
 
-This will return a list of `RevisionInfo` objects, each pointing to a specific
+This will return a list of `TagInfo` objects, each pointing to a specific
 tagged revision. 
 
 ### A Note on Package Identifiers
