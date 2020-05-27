@@ -186,6 +186,15 @@ def test_tag_create_invalid_names(name):
         backend.tag_create(p1.package_id, p1.revision, name, description="Invalid tag name")
 
 
+def test_tag_create_existing_name():
+    backend = FilesystemStorage('mem://')
+    p1 = backend.create('myorg/mydataset', create_test_datapackage('mydataset'))
+    backend.tag_create(p1.package_id, p1.revision, 'version-1.0', "My nice little tag")
+    p2 = backend.update('myorg/mydataset', create_test_datapackage('mydataset', type='csv'))
+    with pytest.raises(exc.Conflict):
+        backend.tag_create(p1.package_id, p2.revision, 'version-1.0', "Next Tag with Same Name")
+
+
 def test_tag_fetch_no_tag():
     backend = FilesystemStorage('mem://')
     p1 = backend.create('myorg/mydataset', create_test_datapackage('mydataset'))
@@ -232,3 +241,134 @@ def test_tag_list_no_package():
     backend = FilesystemStorage('mem://')
     with pytest.raises(exc.NotFound):
         backend.tag_list('myorg/otherdataset')
+
+
+def test_tag_update():
+    backend = FilesystemStorage('mem://')
+    p1 = backend.create('myorg/mydataset', create_test_datapackage('mydataset'))
+    t1 = backend.tag_create(p1.package_id, p1.revision, 'version-1.0', "My nice little tag")
+    t2 = backend.tag_update(p1.package_id, t1.name, new_name='v-1.0', new_description='My newer better tag')
+
+    with pytest.raises(exc.NotFound):
+        backend.fetch(p1.package_id, revision_ref=t1.name)
+
+    p2 = backend.fetch(p1.package_id, revision_ref=t2.name)
+    assert p2 == p1
+
+    tags = backend.tag_list(p1.package_id)
+    assert len(tags) == 1
+    assert tags[0].description == 'My newer better tag'
+
+
+def test_tag_update_desc_only():
+    backend = FilesystemStorage('mem://')
+    p1 = backend.create('myorg/mydataset', create_test_datapackage('mydataset'))
+    t1 = backend.tag_create(p1.package_id, p1.revision, 'version-1.0', "My nice little tag")
+    backend.tag_update(p1.package_id, t1.name, new_description='My newer better tag')
+
+    p2 = backend.fetch(p1.package_id, revision_ref=t1.name)
+    assert p2 == p1
+
+    tags = backend.tag_list(p1.package_id)
+    assert len(tags) == 1
+    assert tags[0].description == 'My newer better tag'
+
+
+def test_tag_update_name_only():
+    backend = FilesystemStorage('mem://')
+    p1 = backend.create('myorg/mydataset', create_test_datapackage('mydataset'))
+    t1 = backend.tag_create(p1.package_id, p1.revision, 'version-1.0', "My nice little tag")
+    t2 = backend.tag_update(p1.package_id, t1.name, new_name='v-1.0')
+
+    with pytest.raises(exc.NotFound):
+        backend.fetch(p1.package_id, revision_ref=t1.name)
+
+    p2 = backend.fetch(p1.package_id, revision_ref=t2.name)
+    assert p2 == p1
+
+    tags = backend.tag_list(p1.package_id)
+    assert len(tags) == 1
+    assert tags[0].description == 'My nice little tag'
+    assert tags[0].name == 'v-1.0'
+
+
+def test_tag_update_no_chance():
+    backend = FilesystemStorage('mem://')
+    p1 = backend.create('myorg/mydataset', create_test_datapackage('mydataset'))
+    t1 = backend.tag_create(p1.package_id, p1.revision, 'version-1.0', "My nice little tag")
+    with pytest.raises(ValueError):
+        backend.tag_update(p1.package_id, t1.name)
+
+
+def test_tag_update_existing_name():
+    backend = FilesystemStorage('mem://')
+    p1 = backend.create('myorg/mydataset', create_test_datapackage('mydataset'))
+    t1 = backend.tag_create(p1.package_id, p1.revision, 'version-1.0', "My nice little tag")
+    p2 = backend.update('myorg/mydataset', create_test_datapackage('mydataset', type='csv'))
+    t2 = backend.tag_create(p1.package_id, p2.revision, 'version-1.1', "My next version tag")
+
+    with pytest.raises(exc.Conflict):
+        backend.tag_update(p1.package_id, t1.name, new_name=t2.name)
+
+    tags = backend.tag_list(p1.package_id)
+    assert len(tags) == 2
+
+
+def test_tag_update_no_tag():
+    backend = FilesystemStorage('mem://')
+    p1 = backend.create('myorg/mydataset', create_test_datapackage('mydataset'))
+    with pytest.raises(exc.NotFound):
+        backend.tag_update(p1.package_id, 'version-1.0', new_name='v-1.0')
+
+
+def test_tag_update_no_package():
+    backend = FilesystemStorage('mem://')
+    with pytest.raises(exc.NotFound):
+        backend.tag_update('myorg/mydataset', 'version-1.0', new_name='v-1.0')
+
+
+def test_tag_update_invalid_name():
+    backend = FilesystemStorage('mem://')
+    p1 = backend.create('myorg/mydataset', create_test_datapackage('mydataset'))
+    t1 = backend.tag_create(p1.package_id, p1.revision, 'version-1.0', "My nice little tag")
+
+    with pytest.raises(ValueError):
+        backend.tag_update(p1.package_id, t1.name, new_name='ver 1.0')
+
+
+def test_tag_delete():
+    backend = FilesystemStorage('mem://')
+    p1 = backend.create('myorg/mydataset', create_test_datapackage('mydataset'))
+    backend.tag_create(p1.package_id, p1.revision, 'version-1.0', "First version")
+    p2 = backend.update('myorg/mydataset', create_test_datapackage('mydataset', type='csv'))
+    backend.tag_create(p1.package_id, p2.revision, 'version-1.1', "Second version")
+    p3 = backend.create('myorg/ohterdataset', create_test_datapackage('otherdataset'))
+    backend.tag_create(p3.package_id, p3.revision, 'version-1.0', "First version")
+
+    tags = backend.tag_list('myorg/mydataset')
+    assert len(tags) == 2
+
+    backend.tag_delete(p1.package_id, 'version-1.0')
+
+    tags = backend.tag_list('myorg/mydataset')
+    assert 1 == len(tags)
+    assert 1 == len(backend.tag_list('myorg/ohterdataset'))
+    assert tags[0].name == 'version-1.1'
+
+
+def test_tag_delete_no_tag():
+    backend = FilesystemStorage('mem://')
+    p1 = backend.create('myorg/mydataset', create_test_datapackage('mydataset'))
+    backend.tag_create(p1.package_id, p1.revision, 'version-1.0', "First version")
+
+    with pytest.raises(exc.NotFound):
+        backend.tag_delete(p1.package_id, 'version-1.1')
+
+
+def test_tag_delete_no_package():
+    backend = FilesystemStorage('mem://')
+    p1 = backend.create('myorg/mydataset', create_test_datapackage('mydataset'))
+    backend.tag_create(p1.package_id, p1.revision, 'version-1.0', "First version")
+
+    with pytest.raises(exc.NotFound):
+        backend.tag_delete('myorg/otherdataset', 'version-1.0')

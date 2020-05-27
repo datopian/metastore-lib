@@ -8,6 +8,7 @@ import json
 import re
 import uuid
 from datetime import datetime
+from operator import attrgetter
 from typing import List, Optional, Union
 
 import pytz
@@ -31,7 +32,6 @@ class FilesystemStorage(StorageBackend):
     See the PyFilesystem documentation for types of supported file systems.
     """
     REVISION_DB_FILE = 'revisions.csv'
-    TAG_DB_FILE = 'tag.csv'
 
     TAG_NAME_RE = re.compile(r'^[\w\-+.]+\Z')
 
@@ -117,8 +117,7 @@ class FilesystemStorage(StorageBackend):
         if not self._validate_tag_name(name):
             raise ValueError("Invalid tag name: {}".format(name))
         revision = self.revision_fetch(package_id, revision_ref)
-        tag_info = self._log_tag(revision, name, description)
-        return tag_info
+        return self._log_tag(revision, name, description)
 
     def tag_list(self, package_id):
         return self._get_tags(package_id)
@@ -134,11 +133,33 @@ class FilesystemStorage(StorageBackend):
         tag_info.revision = self.revision_fetch(package_id, tag_info.revision_ref)
         return tag_info
 
-    def tag_update(self, package_id, tag, name=None, description=None):
-        pass
+    def tag_update(self, package_id, tag, new_name=None, new_description=None):
+        if new_name is None and new_description is None:
+            raise ValueError("Expecting at least one of new_name or new_description to be specified")
+        elif new_name:
+            if not self._validate_tag_name(new_name):
+                raise ValueError("Invalid tag name: {}".format(new_name))
+
+        tag_info = self.tag_fetch(package_id, tag)
+        name = new_name or tag_info.name
+        description = new_description or tag_info.description or None
+
+        with self._fs.lock():
+            if tag_info.name == name:
+                tag_info = self._log_tag(tag_info.revision, name, description, allow_overwrite=True)
+            else:
+                tag_info = self._log_tag(tag_info.revision, name, description, allow_overwrite=False)
+                self.tag_delete(package_id, tag)
+
+        return tag_info
 
     def tag_delete(self, package_id, tag):
-        pass
+        with self._fs.lock():
+            tags_dir = self._open_tag_dir(package_id)
+            try:
+                tags_dir.remove(tag)
+            except ResourceNotFound:
+                raise exc.NotFound('Could not find tag {} for package {}', tag, package_id)
 
     @staticmethod
     def _get_package_path(package_id):
@@ -211,13 +232,14 @@ class FilesystemStorage(StorageBackend):
                                    isoparse(rev_data[1]),
                                    description=base64.b64decode(rev_data[2]) if rev_data[2] else None)
 
-    def _parse_tag_log(self, package_id, tag_data):
-        # type: (str, List[str]) -> TagInfo
+    def _parse_tag_file_content(self, package_id, tag_name, tag_line):
+        # type: (str, str, str) -> TagInfo
+        tag_data = tag_line.split(',', 2)
         return TagInfo(package_id,
-                       tag_data[0],
-                       isoparse(tag_data[1]),
-                       tag_data[2],
-                       description=base64.b64decode(tag_data[3]) if tag_data[2] else None)
+                       tag_name,
+                       isoparse(tag_data[0]),
+                       tag_data[1],
+                       description=base64.b64decode(tag_data[2]) if tag_data[2] else None)
 
     def _validate_tag_name(self, name):
         # type: (str) -> bool
@@ -225,17 +247,22 @@ class FilesystemStorage(StorageBackend):
         """
         return bool(self.TAG_NAME_RE.match(name))
 
-    def _log_tag(self, revision, tag_name, tag_description):
+    def _log_tag(self, revision, tag_name, tag_description, allow_overwrite=False):
         # type: (PackageRevisionInfo, str, str) -> TagInfo
         """Log a new tag for an existing revision
         """
-        db_file = u'{}/{}'.format(self._get_package_path(revision.package_id), self.TAG_DB_FILE)
-        now = datetime.now(tz=pytz.utc).isoformat()
-        with self._fs.open(db_file, 'ab') as f:
-            f.write('{},{},{},{}\n'.format(tag_name,
-                                           now,
-                                           revision.revision,
-                                           base64.b64encode(tag_description) if tag_description else ''))
+        tags_path = u'{}/{}'.format(self._get_package_path(revision.package_id), 'tags')
+        now = datetime.now(tz=pytz.utc)
+        tags_dir = self._fs.makedirs(tags_path, recreate=True)
+
+        with tags_dir.lock():
+            if not allow_overwrite and tags_dir.exists(tag_name):
+                raise exc.Conflict('Tag already exists: {}'.format(tag_name))
+
+            with tags_dir.open(tag_name, 'wb') as f:
+                f.write('{},{},{}'.format(now.isoformat(),
+                                          revision.revision,
+                                          base64.b64encode(tag_description) if tag_description else ''))
         return TagInfo(revision.package_id, tag_name, now, revision.revision, revision, description=tag_description)
 
     def _get_tag(self, package_id, tag_name):
@@ -245,22 +272,34 @@ class FilesystemStorage(StorageBackend):
         If not found, will return None
         """
         try:
-            package_dir = self._fs.opendir(self._get_package_path(package_id))
+            tag_dir = self._open_tag_dir(package_id)
+            if not tag_dir:
+                return None
+            with tag_dir.open(tag_name, 'r') as f:
+                line = f.read()
         except ResourceNotFound:
-            raise exc.NotFound('Could not find package {}', package_id)
+            return None
 
-        try:
-            with package_dir.open(self.TAG_DB_FILE, 'r') as f:
-                for line in f:
-                    tag_data = line.split(',', 3)
-                    if tag_data[0] == tag_name:
-                        return self._parse_tag_log(package_id, tag_data)
-        except ResourceNotFound:
-            pass
+        return self._parse_tag_file_content(package_id, tag_name, line)
 
     def _get_tags(self, package_id):
         # type: (str) -> List[TagInfo]
         """Get list of all tags from the tag DB file
+        """
+        tags = []
+        tag_dir = self._open_tag_dir(package_id)
+        if tag_dir is None:
+            return []
+
+        for tag_name in tag_dir.listdir('.'):
+            with tag_dir.open(tag_name, 'r') as f:
+                tag_line = f.read()
+            tags.append(self._parse_tag_file_content(package_id, tag_name, tag_line))
+
+        return sorted(tags, key=attrgetter('created'))
+
+    def _open_tag_dir(self, package_id):
+        """Open a tag directory and return it
         """
         try:
             package_dir = self._fs.opendir(self._get_package_path(package_id))
@@ -268,8 +307,6 @@ class FilesystemStorage(StorageBackend):
             raise exc.NotFound('Could not find package {}', package_id)
 
         try:
-            with package_dir.open(self.TAG_DB_FILE, 'r') as f:
-                tag_data = [line.split(',', 3) for line in f]
+            return package_dir.opendir('tags')
         except ResourceNotFound:
-            return []
-        return [self._parse_tag_log(package_id, t) for t in tag_data]
+            return None

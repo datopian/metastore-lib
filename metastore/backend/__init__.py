@@ -69,7 +69,7 @@ class StorageBackend(object):
         """
         raise NotImplementedError("This method is not implemented for this backend")
 
-    def tag_update(self, package_id, tag, name=None, description=None):
+    def tag_update(self, package_id, tag, new_name=None, new_description=None):
         # type: (str, str, Optional[str], Optional[str]) -> TagInfo
         """Modify existing tag name or description
         """
