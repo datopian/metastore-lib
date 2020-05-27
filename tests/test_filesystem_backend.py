@@ -117,6 +117,26 @@ def test_revision_list_multiple_revisions():
     assert revs[0].description == "Set type to xls"
 
 
+def test_revision_list_multiple_revisions_different_packages():
+    backend = FilesystemStorage('mem://')
+    p1 = backend.create('myorg/mydataset', create_test_datapackage('mydataset'))
+    p2 = backend.create('myorg/otherdataset', create_test_datapackage('otherdataset'))
+    p3 = backend.update('myorg/mydataset', {"type": "csv"}, partial=True, update_description="Set type to csv")
+    p4 = backend.update('myorg/otherdataset', {"type": "xls"}, partial=True, update_description="Set type to xls")
+
+    revs = backend.revision_list('myorg/mydataset')
+    assert len(revs) == 2
+    assert revs[1].revision == p1.revision
+    assert revs[0].revision == p3.revision
+    assert revs[0].description == "Set type to csv"
+
+    revs = backend.revision_list('myorg/otherdataset')
+    assert len(revs) == 2
+    assert revs[1].revision == p2.revision
+    assert revs[0].revision == p4.revision
+    assert revs[0].description == "Set type to xls"
+
+
 def test_revision_fetch():
     backend = FilesystemStorage('mem://')
     backend.create('myorg/mydataset', create_test_datapackage('mydataset'))
@@ -164,3 +184,51 @@ def test_tag_create_invalid_names(name):
     p1 = backend.create('myorg/mydataset', create_test_datapackage('mydataset'))
     with pytest.raises(ValueError):
         backend.tag_create(p1.package_id, p1.revision, name, description="Invalid tag name")
+
+
+def test_tag_fetch_no_tag():
+    backend = FilesystemStorage('mem://')
+    p1 = backend.create('myorg/mydataset', create_test_datapackage('mydataset'))
+    with pytest.raises(exc.NotFound):
+        backend.tag_fetch(p1.package_id, 'version-1.0')
+
+
+def test_tag_fetch_no_package():
+    backend = FilesystemStorage('mem://')
+    p1 = backend.create('myorg/mydataset', create_test_datapackage('mydataset'))
+    backend.tag_create(p1.package_id, p1.revision, 'version-1.0', "My nice little tag")
+    with pytest.raises(exc.NotFound):
+        backend.tag_fetch('myorg/otherpackage', 'version-1.0')
+
+
+def test_tag_list():
+    backend = FilesystemStorage('mem://')
+    p1 = backend.create('myorg/mydataset', create_test_datapackage('mydataset'))
+    backend.tag_create(p1.package_id, p1.revision, 'version-1.0', "First version")
+    p2 = backend.update('myorg/mydataset', create_test_datapackage('mydataset', type='csv'))
+    backend.tag_create(p1.package_id, p2.revision, 'version-1.1', "Second version")
+    p3 = backend.create('myorg/ohterdataset', create_test_datapackage('otherdataset'))
+    backend.tag_create(p3.package_id, p3.revision, 'version-1.0', "First version")
+
+    tags = backend.tag_list('myorg/mydataset')
+    assert len(tags) == 2
+    assert tags[0].name == 'version-1.0'
+    assert tags[0].revision_ref == p1.revision
+    assert tags[1].name == 'version-1.1'
+    assert tags[1].revision_ref == p2.revision
+
+
+def test_tag_list_no_tags():
+    backend = FilesystemStorage('mem://')
+    p1 = backend.create('myorg/mydataset', create_test_datapackage('mydataset'))
+    backend.tag_create(p1.package_id, p1.revision, 'version-1.0', "First version")
+    backend.create('myorg/otherdataset', create_test_datapackage('otherdataset'))
+
+    tags = backend.tag_list('myorg/otherdataset')
+    assert 0 == len(tags)
+
+
+def test_tag_list_no_package():
+    backend = FilesystemStorage('mem://')
+    with pytest.raises(exc.NotFound):
+        backend.tag_list('myorg/otherdataset')

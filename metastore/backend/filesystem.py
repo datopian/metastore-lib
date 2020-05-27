@@ -121,12 +121,16 @@ class FilesystemStorage(StorageBackend):
         return tag_info
 
     def tag_list(self, package_id):
-        pass
+        return self._get_tags(package_id)
 
     def tag_fetch(self, package_id, tag):
         if not self._validate_tag_name(tag):
             raise ValueError("Invalid tag name: {}".format(tag))
+
         tag_info = self._get_tag(package_id, tag)
+        if not tag_info:
+            raise exc.NotFound('Could not find tag {} for package {}', tag, package_id)
+
         tag_info.revision = self.revision_fetch(package_id, tag_info.revision_ref)
         return tag_info
 
@@ -240,9 +244,32 @@ class FilesystemStorage(StorageBackend):
 
         If not found, will return None
         """
-        db_file = u'{}/{}'.format(self._get_package_path(package_id), self.TAG_DB_FILE)
-        with self._fs.open(db_file, 'r') as f:
-            for line in f:
-                tag_data = line.split(',', 3)
-                if tag_data[0] == tag_name:
-                    return self._parse_tag_log(package_id, tag_data)
+        try:
+            package_dir = self._fs.opendir(self._get_package_path(package_id))
+        except ResourceNotFound:
+            raise exc.NotFound('Could not find package {}', package_id)
+
+        try:
+            with package_dir.open(self.TAG_DB_FILE, 'r') as f:
+                for line in f:
+                    tag_data = line.split(',', 3)
+                    if tag_data[0] == tag_name:
+                        return self._parse_tag_log(package_id, tag_data)
+        except ResourceNotFound:
+            pass
+
+    def _get_tags(self, package_id):
+        # type: (str) -> List[TagInfo]
+        """Get list of all tags from the tag DB file
+        """
+        try:
+            package_dir = self._fs.opendir(self._get_package_path(package_id))
+        except ResourceNotFound:
+            raise exc.NotFound('Could not find package {}', package_id)
+
+        try:
+            with package_dir.open(self.TAG_DB_FILE, 'r') as f:
+                tag_data = [line.split(',', 3) for line in f]
+        except ResourceNotFound:
+            return []
+        return [self._parse_tag_log(package_id, t) for t in tag_data]
