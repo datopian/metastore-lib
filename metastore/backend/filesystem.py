@@ -9,9 +9,10 @@ import re
 import uuid
 from datetime import datetime
 from operator import attrgetter
-from typing import List, Optional, Union
+from typing import List, Optional
 
 import pytz
+import six
 from dateutil.parser import isoparse
 from fs import open_fs
 from fs.errors import DirectoryExists, ResourceNotFound
@@ -49,7 +50,7 @@ class FilesystemStorage(StorageBackend):
         revision = self._make_revision_id()
         with self._fs.lock():
             with dir.open(revision, 'wb') as f:
-                json.dump(metadata, f)
+                f.write(json.dumps(metadata).encode('utf8'))
             rev_info = self._log_revision(package_id, revision, revision_desc)
         rev_info.package = metadata
         return rev_info
@@ -85,7 +86,7 @@ class FilesystemStorage(StorageBackend):
         with self._fs.lock():
             revision = self._make_revision_id()
             with self._fs.open(u'{}/{}'.format(self._get_package_path(package_id), revision), 'wb') as f:
-                json.dump(metadata, f)
+                f.write(json.dumps(metadata).encode('utf8'))
             rev_info = self._log_revision(package_id, revision, update_description)
         rev_info.package = metadata
         return rev_info
@@ -163,17 +164,17 @@ class FilesystemStorage(StorageBackend):
 
     @staticmethod
     def _get_package_path(package_id):
-        # type: (str) -> Union[str, unicode]
+        # type: (str) -> six.text_type
         """Create a package path
         """
-        return u'/p/{}'.format(hashlib.md5(package_id).hexdigest())
+        return u'/p/{}'.format(hashlib.md5(package_id.encode('utf8')).hexdigest())
 
     @staticmethod
     def _make_revision_id():
         # type: () -> str
         """Generate a random unique revision ID
         """
-        return uuid.uuid4().get_hex()
+        return uuid.uuid4().hex
 
     @staticmethod
     def _is_revision_like(ref):
@@ -196,9 +197,9 @@ class FilesystemStorage(StorageBackend):
         db_file = u'{}/{}'.format(self._get_package_path(package_id), self.REVISION_DB_FILE)
         now = datetime.now(tz=pytz.utc).isoformat()
         with self._fs.open(db_file, 'ab') as f:
-            f.write('{},{},{}\n'.format(revision,
-                                        now,
-                                        base64.b64encode(revision_desc) if revision_desc else ''))
+            encoded_desc = base64.b64encode(revision_desc.encode('utf8')) if revision_desc else b''
+            line = '{},{},{}\n'.format(revision, now, encoded_desc.decode('utf8'))
+            f.write(line.encode('utf8'))
         return PackageRevisionInfo(package_id, revision, now, revision_desc)
 
     def _get_revisions(self, package_id):
@@ -230,7 +231,7 @@ class FilesystemStorage(StorageBackend):
         return PackageRevisionInfo(package_id,
                                    rev_data[0],
                                    isoparse(rev_data[1]),
-                                   description=base64.b64decode(rev_data[2]) if rev_data[2] else None)
+                                   description=base64.b64decode(rev_data[2]).decode('utf8') if rev_data[2] else None)
 
     def _parse_tag_file_content(self, package_id, tag_name, tag_line):
         # type: (str, str, str) -> TagInfo
@@ -239,7 +240,7 @@ class FilesystemStorage(StorageBackend):
                        tag_name,
                        isoparse(tag_data[0]),
                        tag_data[1],
-                       description=base64.b64decode(tag_data[2]) if tag_data[2] else None)
+                       description=base64.b64decode(tag_data[2]).decode('utf8') if tag_data[2] else None)
 
     def _validate_tag_name(self, name):
         # type: (str) -> bool
@@ -260,9 +261,9 @@ class FilesystemStorage(StorageBackend):
                 raise exc.Conflict('Tag already exists: {}'.format(tag_name))
 
             with tags_dir.open(tag_name, 'wb') as f:
-                f.write('{},{},{}'.format(now.isoformat(),
-                                          revision.revision,
-                                          base64.b64encode(tag_description) if tag_description else ''))
+                f.write('{},{},'.format(now.isoformat(), revision.revision).encode('utf8'))
+                if tag_description:
+                    f.write(base64.b64encode(tag_description.encode('utf8')))
         return TagInfo(revision.package_id, tag_name, now, revision.revision, revision, description=tag_description)
 
     def _get_tag(self, package_id, tag_name):
