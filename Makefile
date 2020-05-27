@@ -14,6 +14,7 @@ GIT := git
 PYTEST_EXTRA_ARGS :=
 
 VERSION := $(shell cat $(VERSION_FILE))
+PYTHON_VERSION := $(shell $(PYTHON) -c 'import sys; print(sys.version_info[0])')
 SOURCE_FILES := $(shell find $(PACKAGE_DIRS) $(TESTS_DIR) -type f -name "*.py")
 TEST_PATHS := $(PACKAGE_DIRS) $(TESTS_DIR)
 SENTINELS := .make-cache
@@ -21,8 +22,14 @@ DIST_DIR := dist
 
 default: help
 
-## Regenerate requirements files
-requirements: dev-requirements.txt requirements.txt
+dev-requirements.%.txt: dev-requirements.in
+	$(PIP_COMPILE) --no-index dev-requirements.in -o $@
+
+requirements.%.txt: requirements.in
+	$(PIP_COMPILE) --no-index requirements.in -o $@
+
+## Update requirements files for the current Python version
+requirements: $(SENTINELS)/requirements
 
 ## Run all tests
 test: $(SENTINELS)/dev-setup
@@ -52,31 +59,28 @@ dist: $(SENTINELS)/dist
 
 .PHONY: test release dist distclean requirements
 
-requirements.txt: requirements.in
-	$(PIP_COMPILE) --no-index --output-file=requirements.txt requirements.in
-
-dev-requirements.txt: dev-requirements.in
-	$(PIP_COMPILE) --no-index --output-file=dev-requirements.txt dev-requirements.in
-
 $(SENTINELS):
 	mkdir $@
+
+$(SENTINELS)/requirements: requirements.py$(PYTHON_VERSION).txt dev-requirements.py$(PYTHON_VERSION).txt | $(SENTINELS)
+	@touch $@
 
 $(SENTINELS)/dist-setup: | $(SENTINELS)
 	$(PIP) install -U pip wheel twine
 	@touch $@
 
-$(SENTINELS)/dist: $(SENTINELS)/dist-setup $(DIST_DIR)/$(PACKAGE_NAME)-$(VERSION).tar.gz $(DIST_DIR)/$(PACKAGE_NAME)-$(VERSION)-py3-none-any.whl | $(SENTINELS)
+$(SENTINELS)/dist: $(SENTINELS)/dist-setup $(DIST_DIR)/$(PACKAGE_NAME)-$(VERSION).tar.gz $(DIST_DIR)/$(PACKAGE_NAME)-$(VERSION)-py2.py3-none-any.whl | $(SENTINELS)
 	@touch $@
 
-$(DIST_DIR)/$(PACKAGE_NAME)-$(VERSION).tar.gz $(DIST_DIR)/$(PACKAGE_NAME)-$(VERSION)-py3-none-any.whl: $(SOURCE_FILES) setup.py | $(SENTINELS)/dist-setup
-	$(PYTHON) setup.py sdist bdist_wheel
+$(DIST_DIR)/$(PACKAGE_NAME)-$(VERSION).tar.gz $(DIST_DIR)/$(PACKAGE_NAME)-$(VERSION)-py2.py3-none-any.whl: $(SOURCE_FILES) setup.py | $(SENTINELS)/dist-setup
+	$(PYTHON) setup.py sdist bdist_wheel --universal
 
-$(SENTINELS)/install: requirements.txt | $(SENTINELS)
-	$(PIP) install -r requirements.txt
+$(SENTINELS)/install: requirements.py$(PYTHON_VERSION).txt | $(SENTINELS)
+	$(PIP) install -r requirements.py$(PYTHON_VERSION).txt
 	@touch $@
 
-$(SENTINELS)/install-dev: dev-requirements.txt | $(SENTINELS)
-	$(PIP) install -r dev-requirements.txt
+$(SENTINELS)/install-dev: dev-requirements.py$(PYTHON_VERSION).txt | $(SENTINELS)
+	$(PIP) install -r dev-requirements.py$(PYTHON_VERSION).txt
 	$(PIP) install -e .
 	@touch $@
 
