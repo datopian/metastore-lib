@@ -153,6 +153,34 @@ Other backends may expect you to use UUID type identifiers.
 It is up to the code using the `metastore` library to be able to compose the 
 right identifiers. 
 
+Using the Filesystem Backend for Testing
+----------------------------------------
+For testing and quick prototyping purposes, this library offers a special 
+`filesystem` backend, which can be used to save versioned datapackage 
+information on the file system, in memory or on virtual file system. 
+
+This backend is based on the [PyFilesystem](https://docs.pyfilesystem.org/)
+library, and can use any of it's supported file systems as storage. 
+
+In testing, it is recommended to use a memory based storage:
+
+```python
+from metastore.backend.filesystem import FilesystemStorage
+
+def test_my_code():
+    """Test for code that relies on a metastore-lib backend
+    """
+    backend = FilesystemStorage('mem://')
+    r1 = backend.create('some-package', datapackage, 'Initial revision') 
+    # ... continue with testing ...
+```
+
+The `FilesystemStorage` constructor takes a single argument, which is a
+`PyFilesystem` root filesystem URL. 
+
+Beyond this, all API is exactly the same as with other backends. 
+
+
 License
 -------
 Copyright (C) 2020, Viderum, Inc. 

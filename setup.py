@@ -18,6 +18,11 @@ setup(
     author_email='shahar.evron@datopian.com',
     install_requires=[
         'pytz',
+        'six',
+        'typing',
+        'typing-extensions',
+        'python-dateutil',
+        'fs',
         'pygithub',
     ],
     package_data={}

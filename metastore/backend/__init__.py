@@ -1,11 +1,12 @@
 """Backend namespace
 """
-# from importlib import import_module
 from typing import Any, Dict, List, Optional
 
 from metastore.types import DataPackageType, PackageRevisionInfo, TagInfo
+from metastore.util import get_callable
 
-BACKEND_CLASSES = {'github': 'metastore.backend.gh:GitHubStorage'}
+BACKEND_CLASSES = {'github': 'metastore.backend.gh:GitHubStorage',
+                   'filesystem': 'metastore.backend.filesystem:FilesystemStorage'}
 
 
 class StorageBackend(object):
@@ -88,10 +89,11 @@ def create_metastore(backend_type, options):
 
     Note that this will import the right backend module only as needed
     """
-    # TODO: use importlib and our BACKEND_CLASSES dict, it's nicer
+    if ':' not in backend_type:
+        try:
+            backend_type = BACKEND_CLASSES[backend_type]
+        except KeyError:
+            raise ValueError("Unknown backend type: {}".format(type))
 
-    if backend_type == 'github':
-        from .gh import GitHubStorage
-        return GitHubStorage(**options)
-    else:
-        raise ValueError("Unknown backend type: {}".format(type))
+    backend = get_callable(backend_type)
+    return backend(**options)  # type: ignore
