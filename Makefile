@@ -57,7 +57,11 @@ distclean:
 ## Create distribution files to upload to pypi
 dist: $(SENTINELS)/dist
 
-.PHONY: test release dist distclean requirements
+## Generate HTML documentation
+html-docs: $(SENTINELS)/dev-setup
+	cd docs && make html
+
+.PHONY: test release dist distclean requirements html-docs
 
 $(SENTINELS):
 	mkdir $@
