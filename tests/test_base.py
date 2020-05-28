@@ -11,5 +11,5 @@ def test_factory_instantiates_filesystem_backend():
 
 
 def test_factory_instantiates_github_backend():
-    backend = create_metastore('github', {})
+    backend = create_metastore('github', {"github_options": {}})
     assert isinstance(backend, GitHubStorage)
