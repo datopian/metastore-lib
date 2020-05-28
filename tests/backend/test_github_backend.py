@@ -46,7 +46,7 @@ def backend():
 
 @pytest.mark.skipif(not (os.environ.get('GITHUB_TOKEN') and os.environ.get('GITHUB_OWNER')),
                     reason="GITHUB_TOKEN or GITHUB OWNER is not set")
-@pytest.mark.vcr()
+# @pytest.mark.vcr()
 class TestGitHubBackend(CommonBackendTestSuite):
 
     ID_PREFIX = 'test__'
