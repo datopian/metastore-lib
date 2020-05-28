@@ -63,10 +63,8 @@ class GitHubStorage(StorageBackend):
         return PackageRevisionInfo(package_id, commit.sha, commit.author.date, change_desc, metadata)
 
     def fetch(self, package_id, revision_ref=None):
-        owner, repo_name = self._parse_id(package_id)
-
+        repo = self._get_repo(package_id)
         try:
-            repo = self._get_owner(owner).get_repo(repo_name)
             if not revision_ref:
                 ref = repo.get_git_ref('heads/{}'.format(self._default_branch))
                 assert ref.object.type == 'commit'
@@ -112,18 +110,17 @@ class GitHubStorage(StorageBackend):
         return PackageRevisionInfo(package_id, commit.sha, commit.author.date, update_description, metadata)
 
     def delete(self, package_id):
-        owner, repo_name = self._parse_id(package_id)
-        try:
-            repo = self._get_owner(owner).get_repo(repo_name)
-        except UnknownObjectException:
-            raise exc.NotFound('Could not find package {}', package_id)
+        repo = self._get_repo(package_id)
         repo.delete()
 
     def revision_list(self, package_id):
-        pass
+        repo = self._get_repo(package_id)
+        commits = repo.get_commits(path='datapackage.json')
+        revisions = [_commit_to_revinfo(package_id, c) for c in commits]
+        return revisions
 
     def revision_fetch(self, package_id, revision_ref):
-        pass
+        return self.fetch(package_id, revision_ref)
 
     def tag_create(self, package_id, revision_ref, name, description=None):
         pass
@@ -161,6 +158,17 @@ class GitHubStorage(StorageBackend):
         else:
             return self.gh.get_organization(owner)
 
+    def _get_repo(self, package_id):
+        # type: (str) -> Repository
+        """Get repository object for package_id, validating that it really
+        exists
+        """
+        owner, repo_name = self._parse_id(package_id)
+        try:
+            return self._get_owner(owner).get_repo(repo_name)
+        except UnknownObjectException:
+            raise exc.NotFound('Could not find package {}', package_id)
+
     def _create_commit(self, repo, files, parent_commit, message):
         # type: (Repository, List[InputGitTreeElement], Commit, str) -> GitCommit
         """Create a git Commit
@@ -180,6 +188,30 @@ class GitHubStorage(StorageBackend):
         # type: (str, bytes) -> InputGitTreeElement
         element = InputGitTreeElement(path, '100644', 'blob', content=content)
         return element
+
+
+def _commit_to_revinfo(package_id, commit):
+    # type: (Commit) -> PackageRevisionInfo
+    """Convert a GitHub Commit object to a PackageRevisionInfo object
+    """
+    return PackageRevisionInfo(package_id,
+                               commit.sha,
+                               commit.commit.author.date,
+                               commit.commit.message)
+
+
+def _is_sha(ref, chars=40):
+    # type: (str, int) -> bool
+    """Check if a string is a revision SHA like string
+    This will return True if the ref is a 40-character hex number
+    """
+    if len(ref) != chars:
+        return False
+    try:
+        int(ref, 16)
+    except ValueError:
+        return False
+    return True
 
 # class CKANGitClient(object):
 #
@@ -318,17 +350,3 @@ class GitHubStorage(StorageBackend):
 #
 #         except Exception as e:
 #             return False
-
-
-def _is_sha(ref, chars=40):
-    # type: (str, int) -> bool
-    """Check if a string is a revision SHA like string
-    This will return True if the ref is a 40-character hex number
-    """
-    if len(ref) != chars:
-        return False
-    try:
-        int(ref, 16)
-    except ValueError:
-        return False
-    return True

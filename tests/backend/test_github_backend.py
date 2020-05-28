@@ -28,7 +28,7 @@ class CleaningGitHubStorage(GitHubStorage):
         for pkg in self._packages:
             try:
                 self.delete(pkg)
-            except Exception:
+            except StandardError:
                 pass
         self._packages = set()
 
