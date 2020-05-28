@@ -8,8 +8,8 @@ from typing import List, Tuple, Union
 
 from github import (AuthenticatedUser, Commit, GitCommit, Github, GithubException, InputGitTreeElement, Organization,
                     Repository, UnknownObjectException)
-from metastore.types import PackageRevisionInfo
 
+from ..types import PackageRevisionInfo
 from . import StorageBackend, exc
 
 
@@ -22,10 +22,10 @@ class GitHubStorage(StorageBackend):
                       '[`metastore-lib`](https://github.com/datopian/metastore-lib)')
 
     DEFAULT_BRANCH = 'master'
-    
+
     DEFAULT_COMMIT_MESSAGE = 'Datapackage updated'
 
-    def __init__(self, github_options, default_owner=None, default_branch=DEFAULT_BRANCH, 
+    def __init__(self, github_options, default_owner=None, default_branch=DEFAULT_BRANCH,
                  default_commit_message=DEFAULT_COMMIT_MESSAGE):
         self.gh = Github(**github_options)
         self._default_owner = default_owner
