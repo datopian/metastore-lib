@@ -5,6 +5,7 @@ NOTE: these tests mock actual requests / responses to GitHub
 import os
 
 import pytest
+from github import GithubException
 
 from metastore.backend.gh import GitHubStorage
 
@@ -28,7 +29,7 @@ class CleaningGitHubStorage(GitHubStorage):
         for pkg in self._packages:
             try:
                 self.delete(pkg)
-            except StandardError:
+            except (GithubException, RuntimeError):
                 pass
         self._packages = set()
 
@@ -45,6 +46,7 @@ def backend():
 
 @pytest.mark.skipif(not (os.environ.get('GITHUB_TOKEN') and os.environ.get('GITHUB_OWNER')),
                     reason="GITHUB_TOKEN or GITHUB OWNER is not set")
+@pytest.mark.vcr()
 class TestGitHubBackend(CommonBackendTestSuite):
 
     ID_PREFIX = 'test__'

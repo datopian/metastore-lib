@@ -47,7 +47,7 @@ class GitHubStorage(StorageBackend):
             change_desc = 'Initial datapackage commit'
 
         try:
-            datapackage = self._create_file('datapackage.json', json.dumps(metadata).encode('utf8'))
+            datapackage = self._create_file('datapackage.json', json.dumps(metadata, indent=2))
 
             # Create an initial README.md file so we can start using the low-level Git API
             repo.create_file('README.md', 'Initialize data repository', self.DEFAULT_README)
@@ -103,7 +103,7 @@ class GitHubStorage(StorageBackend):
             metadata = parent.package
 
         # TODO: handle resources / Git LFS config and pointer files
-        datapackage = self._create_file('datapackage.json', json.dumps(metadata).encode('utf8'))
+        datapackage = self._create_file('datapackage.json', json.dumps(metadata, indent=2))
         repo = self._get_owner(owner).get_repo(repo_name)
         head = repo.get_branch(self._default_branch)
         commit = self._create_commit(repo, [datapackage], head.commit, update_description)
