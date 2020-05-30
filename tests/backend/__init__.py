@@ -150,14 +150,14 @@ class CommonBackendTestSuite(object):
 
     def test_tag_create_fetch(self, backend):
         p1 = backend.create(self.dataset_id('mydataset'), create_test_datapackage('mydataset'))
-        r1 = backend.tag_create(p1.package_id, p1.revision, 'version-1.0', "My nice little tag")
+        r1 = backend.tag_create(p1.package_id, p1.revision, 'version-1.0', 'My nice little tag')
         t1 = backend.tag_fetch(p1.package_id, 'version-1.0')
         assert t1.revision == r1.revision
         assert t1.name == 'version-1.0'
+        assert t1.description == 'My nice little tag'
 
     @pytest.mark.parametrize('name', [
         'with space',
-        'with,comma',
         'with!',
         'with\n',
         '',
@@ -168,6 +168,17 @@ class CommonBackendTestSuite(object):
         with pytest.raises(ValueError):
             backend.tag_create(p1.package_id, p1.revision, name, description="Invalid tag name")
 
+    def test_tag_create_fetch_substring_names(self, backend):
+        p1 = backend.create(self.dataset_id('mydataset'), create_test_datapackage('mydataset'))
+        r1 = backend.tag_create(p1.package_id, p1.revision, 'version-1.0', "My nice little tag")
+        r2 = backend.tag_create(p1.package_id, p1.revision, 'version-1.0.0', "This is a different tag")
+        t1 = backend.tag_fetch(p1.package_id, 'version-1.0')
+        assert t1.revision == r1.revision
+        assert t1.name == 'version-1.0'
+        t2 = backend.tag_fetch(p1.package_id, 'version-1.0.0')
+        assert t2.revision == r2.revision
+        assert t2.name == 'version-1.0.0'
+
     def test_tag_create_existing_name(self, backend):
         p1 = backend.create(self.dataset_id('mydataset'), create_test_datapackage('mydataset'))
         backend.tag_create(p1.package_id, p1.revision, 'version-1.0', "My nice little tag")
@@ -175,7 +186,7 @@ class CommonBackendTestSuite(object):
         with pytest.raises(exc.Conflict):
             backend.tag_create(p1.package_id, p2.revision, 'version-1.0', "Next Tag with Same Name")
 
-    def test_tag_fetch_no_tagse(self, backend):
+    def test_tag_fetch_no_tags(self, backend):
         p1 = backend.create(self.dataset_id('mydataset'), create_test_datapackage('mydataset'))
         with pytest.raises(exc.NotFound):
             backend.tag_fetch(p1.package_id, 'version-1.0')

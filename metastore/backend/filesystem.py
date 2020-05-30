@@ -34,7 +34,7 @@ class FilesystemStorage(StorageBackend):
     """
     REVISION_DB_FILE = 'revisions.csv'
 
-    TAG_NAME_RE = re.compile(r'^[\w\-+.]+\Z')
+    TAG_NAME_RE = re.compile(r'^[\w\-+.,]+\Z')
 
     def __init__(self, uri):
         # type: (str) -> None
