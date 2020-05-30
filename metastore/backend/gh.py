@@ -1,15 +1,17 @@
 # coding=utf-8
 """Github Storage Backend implementation
 
-TODO: Implement me; Original code copied from ckanext-gitdatahub
+This backend stores datasets as GitHub repositories, utilizing Git's built-in
+revisions and tags. This implementation is based on GitHub's Web API, and will
+not support other Git hosting services.
 """
 import json
 from typing import List, Tuple, Union
 
-from github import (AuthenticatedUser, Commit, GitCommit, Github, GithubException, InputGitTreeElement, Organization,
-                    Repository, UnknownObjectException)
+from github import (AuthenticatedUser, Commit, GitCommit, GitRef, Github, GithubException, InputGitTreeElement,
+                    Organization, PaginatedList, Repository, UnknownObjectException)
 
-from ..types import PackageRevisionInfo
+from ..types import PackageRevisionInfo, TagInfo
 from . import StorageBackend, exc
 
 
@@ -24,6 +26,7 @@ class GitHubStorage(StorageBackend):
     DEFAULT_BRANCH = 'master'
 
     DEFAULT_COMMIT_MESSAGE = 'Datapackage updated'
+    DEFAULT_TAG_MESSAGE = 'Tagging revision'
 
     def __init__(self, github_options, default_owner=None, default_branch=DEFAULT_BRANCH,
                  default_commit_message=DEFAULT_COMMIT_MESSAGE):
@@ -69,8 +72,8 @@ class GitHubStorage(StorageBackend):
                 ref = repo.get_git_ref('heads/{}'.format(self._default_branch))
                 assert ref.object.type == 'commit'
                 revision_ref = ref.object.sha
-            elif not _is_sha(revision_ref):  # TODO: this may not work for tags
-                ref = repo.get_git_ref('heads/{}'.format(revision_ref))
+            elif not _is_sha(revision_ref):
+                ref = repo.get_git_ref('tags/{}'.format(revision_ref))
                 assert ref.object.type == 'commit'
                 revision_ref = ref.object.sha
 
@@ -123,19 +126,60 @@ class GitHubStorage(StorageBackend):
         return self.fetch(package_id, revision_ref)
 
     def tag_create(self, package_id, revision_ref, name, description=None):
-        pass
+        repo = self._get_repo(package_id)
+        revision = self.revision_fetch(package_id, revision_ref)
+        if description is None:
+            description = self.DEFAULT_TAG_MESSAGE
+
+        try:
+            git_tag = repo.create_git_tag(name, description, revision_ref, 'commit')
+            repo.create_git_ref('refs/tags/{}'.format(name), git_tag.sha)
+        except GithubException as e:
+            if e.status == 422:
+                if e.data['message'] == 'Reference already exists':
+                    raise exc.Conflict('Tag {} already exists'.format(name))
+                # Assume invalid name error
+                raise ValueError(e)
+            raise
+
+        created = git_tag.tagger.date
+        return TagInfo(package_id, name, created, revision_ref, revision, description)
 
     def tag_list(self, package_id):
-        pass
+        repo = self._get_repo(package_id)
+        tags = repo.get_tags()
+        return tags
 
     def tag_fetch(self, package_id, tag):
-        pass
+        repo = self._get_repo(package_id)
+        # refs = _get_git_matching_refs(repo, 'tags/{}'.format(tag))
+        ref = repo.get_git_ref('tags/{}'.format(tag))
+        if not ref:
+            raise exc.NotFound('Could not find tag {} for package {}', tag, package_id)
+        tag_obj = repo.get_git_tag(ref.object.sha)
+        revision = self.revision_fetch(package_id, tag_obj.object.sha)
+        return TagInfo(package_id, tag, tag_obj.tagger.date, tag_obj.object.sha, revision, tag_obj.message)
 
     def tag_update(self, package_id, tag, new_name=None, new_description=None):
-        pass
+        if new_name is None and new_description is None:
+            raise ValueError("Expecting at least one of new_name or new_description to be specified")
+
+        repo = self._get_repo(package_id)
+        tag_info = self.tag_fetch(package_id, tag)
+        description = new_description or tag_info.description
+
+        # TODO: create tag, update ref
+
+        if tag != new_name:
+            new_tag = self.tag_create(package_id, tag_info.revision_ref, new_name)
 
     def tag_delete(self, package_id, tag):
-        pass
+        repo = self._get_repo(package_id)
+        try:
+            ref = repo.get_git_ref('tags/{}'.format(tag))
+            ref.delete()
+        except UnknownObjectException:
+            raise exc.NotFound('Could not find tag {} for package {}', tag, package_id)
 
     def _parse_id(self, package_id):
         # type: (str) -> Tuple(str, str)
@@ -350,3 +394,23 @@ def _is_sha(ref, chars=40):
 #
 #         except Exception as e:
 #             return False
+
+
+def _get_git_matching_refs(repo, ref):
+    """This is backported from PyGithub 1.51 to support Python 2.7 which is no
+    longer supported for that version.
+
+    If we ever drop Python 2.7 support, this code is no longer needed and
+    :meth:``github.Repository.Repository.get_git_matching_refs`` can be called
+    directly.
+    """
+    if hasattr(repo, 'get_git_matching_refs'):
+        return repo.get_git_matching_refs(ref)
+
+    assert isinstance(ref, str), ref
+    return PaginatedList.PaginatedList(
+        GitRef.GitRef,
+        repo._requester,
+        repo.url + "/git/matching-refs/" + ref,
+        None,
+    )
