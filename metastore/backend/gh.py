@@ -8,7 +8,7 @@ not support other Git hosting services.
 import json
 from typing import List, Tuple, Union
 
-from github import (AuthenticatedUser, Commit, GitCommit, GitRef, GitTag, Github, GithubException, InputGitTreeElement,
+from github import (AuthenticatedUser, Commit, GitCommit, Github, GithubException, GitRef, GitTag, InputGitTreeElement,
                     Organization, PaginatedList, Repository, UnknownObjectException)
 
 from ..types import PackageRevisionInfo, TagInfo
