@@ -186,7 +186,7 @@ class CommonBackendTestSuite(object):
         with pytest.raises(exc.Conflict):
             backend.tag_create(p1.package_id, p2.revision, 'version-1.0', "Next Tag with Same Name")
 
-    def test_tag_fetch_no_tags(self, backend):
+    def test_tag_fetch_no_tag(self, backend):
         p1 = backend.create(self.dataset_id('mydataset'), create_test_datapackage('mydataset'))
         with pytest.raises(exc.NotFound):
             backend.tag_fetch(p1.package_id, 'version-1.0')

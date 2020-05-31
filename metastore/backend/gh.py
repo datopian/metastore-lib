@@ -8,7 +8,7 @@ not support other Git hosting services.
 import json
 from typing import List, Tuple, Union
 
-from github import (AuthenticatedUser, Commit, GitCommit, GitRef, Github, GithubException, InputGitTreeElement,
+from github import (AuthenticatedUser, Commit, GitCommit, GitRef, GitTag, Github, GithubException, InputGitTreeElement,
                     Organization, PaginatedList, Repository, UnknownObjectException)
 
 from ..types import PackageRevisionInfo, TagInfo
@@ -73,9 +73,8 @@ class GitHubStorage(StorageBackend):
                 assert ref.object.type == 'commit'
                 revision_ref = ref.object.sha
             elif not _is_sha(revision_ref):
-                ref = repo.get_git_ref('tags/{}'.format(revision_ref))
-                assert ref.object.type == 'commit'
-                revision_ref = ref.object.sha
+                tag = self.tag_fetch(package_id, revision_ref)
+                revision_ref = tag.revision_ref
 
             # Get the commit pointed by revision_ref
             commit = repo.get_git_commit(revision_ref)
@@ -131,34 +130,24 @@ class GitHubStorage(StorageBackend):
         if description is None:
             description = self.DEFAULT_TAG_MESSAGE
 
-        try:
-            git_tag = repo.create_git_tag(name, description, revision_ref, 'commit')
-            repo.create_git_ref('refs/tags/{}'.format(name), git_tag.sha)
-        except GithubException as e:
-            if e.status == 422:
-                if e.data['message'] == 'Reference already exists':
-                    raise exc.Conflict('Tag {} already exists'.format(name))
-                # Assume invalid name error
-                raise ValueError(e)
-            raise
-
-        created = git_tag.tagger.date
-        return TagInfo(package_id, name, created, revision_ref, revision, description)
+        git_tag = self._create_tag(repo, name, description, revision_ref)
+        return TagInfo(package_id, name, git_tag.tagger.date, revision_ref, revision, description)
 
     def tag_list(self, package_id):
         repo = self._get_repo(package_id)
-        tags = repo.get_tags()
+        tag_refs = _get_git_matching_refs(repo, 'tags/')
+        tags = []
+        for ref in tag_refs:
+            tags.append(self._tag_ref_to_taginfo(package_id, repo, ref))
         return tags
 
     def tag_fetch(self, package_id, tag):
         repo = self._get_repo(package_id)
-        # refs = _get_git_matching_refs(repo, 'tags/{}'.format(tag))
-        ref = repo.get_git_ref('tags/{}'.format(tag))
-        if not ref:
+        try:
+            ref = repo.get_git_ref('tags/{}'.format(tag))
+        except UnknownObjectException:
             raise exc.NotFound('Could not find tag {} for package {}', tag, package_id)
-        tag_obj = repo.get_git_tag(ref.object.sha)
-        revision = self.revision_fetch(package_id, tag_obj.object.sha)
-        return TagInfo(package_id, tag, tag_obj.tagger.date, tag_obj.object.sha, revision, tag_obj.message)
+        return self._tag_ref_to_taginfo(package_id, repo, ref)
 
     def tag_update(self, package_id, tag, new_name=None, new_description=None):
         if new_name is None and new_description is None:
@@ -166,12 +155,20 @@ class GitHubStorage(StorageBackend):
 
         repo = self._get_repo(package_id)
         tag_info = self.tag_fetch(package_id, tag)
+        name = new_name or tag_info.name
         description = new_description or tag_info.description
 
-        # TODO: create tag, update ref
+        if name == tag_info.name and description == tag_info.description:
+            # Nothing to change here
+            return tag_info
+        elif name != tag_info.name:
+            git_tag = self._create_tag(repo, name, description, tag_info.revision_ref)
+            repo.get_git_ref('tags/{}'.format(tag_info.name)).delete()
+        else:
+            git_tag = repo.create_git_tag(name, description, tag_info.revision_ref, 'commit')
+            repo.get_git_ref('tags/{}'.format(name)).edit(git_tag.sha)
 
-        if tag != new_name:
-            new_tag = self.tag_create(package_id, tag_info.revision_ref, new_name)
+        return TagInfo(package_id, name, git_tag.tagger.date, tag_info.revision_ref, tag_info.revision, description)
 
     def tag_delete(self, package_id, tag):
         repo = self._get_repo(package_id)
@@ -226,6 +223,31 @@ class GitHubStorage(StorageBackend):
         ref.edit(commit.sha)
 
         return commit
+
+    def _create_tag(self, repo, name, description, revision_ref):
+        # type: (Repository.Repository, str, str, str) -> GitTag.GitTag
+        """Low level operations for creating a git tag
+        """
+        try:
+            git_tag = repo.create_git_tag(name, description, revision_ref, 'commit')
+            repo.create_git_ref('refs/tags/{}'.format(name), git_tag.sha)
+        except GithubException as e:
+            if e.status == 422:
+                if e.data['message'] == 'Reference already exists':
+                    raise exc.Conflict('Tag {} already exists'.format(name))
+                # Assume invalid name error
+                raise ValueError(e)
+            raise
+
+        return git_tag
+
+    def _tag_ref_to_taginfo(self, package_id, repo, ref):
+        # type: (str, Repository.Repository, GitRef.GitRef) -> TagInfo
+        """Convert a GitRef for a tag into a TagInfo object
+        """
+        tag_obj = repo.get_git_tag(ref.object.sha)
+        revision = self.revision_fetch(package_id, tag_obj.object.sha)
+        return TagInfo(package_id, tag_obj.tag, tag_obj.tagger.date, tag_obj.object.sha, revision, tag_obj.message)
 
     @staticmethod
     def _create_file(path, content):
