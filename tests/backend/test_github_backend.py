@@ -22,8 +22,8 @@ class CleaningGitHubStorage(GitHubStorage):
         self._packages = set()
         self._log = logging.getLogger(__name__)
 
-    def create(self, package_id, metadata, change_desc=None):
-        package = super(CleaningGitHubStorage, self).create(package_id, metadata, change_desc)
+    def create(self, package_id, metadata, author=None, message=None):
+        package = super(CleaningGitHubStorage, self).create(package_id, metadata, author, message)
         self._packages.add(package.package_id)
         return package
 
