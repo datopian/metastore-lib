@@ -170,7 +170,7 @@ class FilesystemStorage(StorageBackend):
 
         with self._fs.open(db_file, 'ab') as f:
             line = [revision, now, message, author.name, author.email]
-            f.write('{}\n'.format(json.dumps(line)))
+            f.write('{}\n'.format(json.dumps(line)).encode('utf8'))
         return PackageRevisionInfo(package_id, revision, now, author, message)
 
     def _get_revisions(self, package_id):
@@ -217,7 +217,7 @@ class FilesystemStorage(StorageBackend):
 
             with tags_dir.open(tag_name, 'wb') as f:
                 line = [now.isoformat(), revision.revision, tag_description, author.name, author.email]
-                json.dump(line, f)
+                f.write(json.dumps(line).encode('utf8'))
         return TagInfo(revision.package_id, tag_name, now, revision.revision, author, revision,
                        description=tag_description)
 
