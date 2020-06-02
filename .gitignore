@@ -4,8 +4,9 @@
 /dist
 /.coverage
 /.make-cache
-
+/.python-version
 .pytest_cache
 .mypy_cache
 *.egg-info
 *.pyc
+/docs/_build/*

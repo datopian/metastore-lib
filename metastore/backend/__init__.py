@@ -39,6 +39,11 @@ class StorageBackend(object):
     def revision_list(self, package_id):
         # type: (str) -> List[PackageRevisionInfo]
         """Get list of revisions for a data package
+
+        Note that when listing, :attr:`metastore.types.PackageRevisionInfo.package`
+        will not be set in the return value. If you need to access the actual package
+        metadata and not just revision information, fetch the package data by calling
+        :meth:`fetch`.
         """
         raise NotImplementedError("This method is not implemented for this backend")
 
