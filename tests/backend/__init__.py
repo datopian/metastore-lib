@@ -96,9 +96,9 @@ class CommonBackendTestSuite(object):
     def test_revision_list_multiple_revisions(self, backend):
         p1 = backend.create(self.dataset_id('mydataset'), create_test_datapackage('mydataset'))
         p2 = backend.update(self.dataset_id('mydataset'), {"type": "csv"}, partial=True,
-                            update_description="Set type to csv")
+                            message="Set type to csv")
         p3 = backend.update(self.dataset_id('mydataset'), {"type": "xls"}, partial=True,
-                            update_description="Set type to xls")
+                            message="Set type to xls")
 
         revs = backend.revision_list(self.dataset_id('mydataset'))
         assert len(revs) == 3
@@ -112,9 +112,9 @@ class CommonBackendTestSuite(object):
         p1 = backend.create(self.dataset_id('mydataset'), create_test_datapackage('mydataset'))
         p2 = backend.create(self.dataset_id('otherdataset'), create_test_datapackage('otherdataset'))
         p3 = backend.update(self.dataset_id('mydataset'), {"type": "csv"}, partial=True,
-                            update_description="Set type to csv")
+                            message="Set type to csv")
         p4 = backend.update(self.dataset_id('otherdataset'), {"type": "xls"}, partial=True,
-                            update_description="Set type to xls")
+                            message="Set type to xls")
 
         revs = backend.revision_list(self.dataset_id('mydataset'))
         assert len(revs) == 2
@@ -131,7 +131,7 @@ class CommonBackendTestSuite(object):
     def test_revision_fetch(self, backend):
         backend.create(self.dataset_id('mydataset'), create_test_datapackage('mydataset'))
         p2 = backend.update(self.dataset_id('mydataset'), {"type": "csv"}, partial=True,
-                            update_description="Set type to csv")
+                            message="Set type to csv")
 
         rev = backend.revision_fetch(p2.package_id, p2.revision)
         assert p2.revision == rev.revision
@@ -150,11 +150,11 @@ class CommonBackendTestSuite(object):
 
     def test_tag_create_fetch(self, backend):
         p1 = backend.create(self.dataset_id('mydataset'), create_test_datapackage('mydataset'))
-        r1 = backend.tag_create(p1.package_id, p1.revision, 'version-1.0', 'My nice little tag')
-        t1 = backend.tag_fetch(p1.package_id, 'version-1.0')
-        assert t1.revision == r1.revision
-        assert t1.name == 'version-1.0'
-        assert t1.description == 'My nice little tag'
+        t1 = backend.tag_create(p1.package_id, p1.revision, 'version-1.0', description='My nice little tag')
+        t2 = backend.tag_fetch(p1.package_id, 'version-1.0')
+        assert t2.revision == t1.revision
+        assert t2.name == 'version-1.0'
+        assert t2.description == 'My nice little tag'
 
     @pytest.mark.parametrize('name', [
         'with space',
@@ -170,8 +170,8 @@ class CommonBackendTestSuite(object):
 
     def test_tag_create_fetch_substring_names(self, backend):
         p1 = backend.create(self.dataset_id('mydataset'), create_test_datapackage('mydataset'))
-        r1 = backend.tag_create(p1.package_id, p1.revision, 'version-1.0', "My nice little tag")
-        r2 = backend.tag_create(p1.package_id, p1.revision, 'version-1.0.0', "This is a different tag")
+        r1 = backend.tag_create(p1.package_id, p1.revision, 'version-1.0', description="My nice little tag")
+        r2 = backend.tag_create(p1.package_id, p1.revision, 'version-1.0.0', description="This is a different tag")
         t1 = backend.tag_fetch(p1.package_id, 'version-1.0')
         assert t1.revision == r1.revision
         assert t1.name == 'version-1.0'
@@ -181,10 +181,10 @@ class CommonBackendTestSuite(object):
 
     def test_tag_create_existing_name(self, backend):
         p1 = backend.create(self.dataset_id('mydataset'), create_test_datapackage('mydataset'))
-        backend.tag_create(p1.package_id, p1.revision, 'version-1.0', "My nice little tag")
+        backend.tag_create(p1.package_id, p1.revision, 'version-1.0', description="My nice little tag")
         p2 = backend.update(self.dataset_id('mydataset'), create_test_datapackage('mydataset', type='csv'))
         with pytest.raises(exc.Conflict):
-            backend.tag_create(p1.package_id, p2.revision, 'version-1.0', "Next Tag with Same Name")
+            backend.tag_create(p1.package_id, p2.revision, 'version-1.0', description="Next Tag with Same Name")
 
     def test_tag_fetch_no_tag(self, backend):
         p1 = backend.create(self.dataset_id('mydataset'), create_test_datapackage('mydataset'))
@@ -193,17 +193,17 @@ class CommonBackendTestSuite(object):
 
     def test_tag_fetch_no_package(self, backend):
         p1 = backend.create(self.dataset_id('mydataset'), create_test_datapackage('mydataset'))
-        backend.tag_create(p1.package_id, p1.revision, 'version-1.0', "My nice little tag")
+        backend.tag_create(p1.package_id, p1.revision, 'version-1.0', description="My nice little tag")
         with pytest.raises(exc.NotFound):
             backend.tag_fetch(self.dataset_id('otherdataset'), 'version-1.0')
 
     def test_tag_list(self, backend):
         p1 = backend.create(self.dataset_id('mydataset'), create_test_datapackage('mydataset'))
-        backend.tag_create(p1.package_id, p1.revision, 'version-1.0', "First version")
+        backend.tag_create(p1.package_id, p1.revision, 'version-1.0', description="First version")
         p2 = backend.update(self.dataset_id('mydataset'), create_test_datapackage('mydataset', type='csv'))
-        backend.tag_create(p1.package_id, p2.revision, 'version-1.1', "Second version")
+        backend.tag_create(p1.package_id, p2.revision, 'version-1.1', description="Second version")
         p3 = backend.create(self.dataset_id('otherdataset'), create_test_datapackage('otherdataset'))
-        backend.tag_create(p3.package_id, p3.revision, 'version-1.0', "First version")
+        backend.tag_create(p3.package_id, p3.revision, 'version-1.0', description="First version")
 
         tags = backend.tag_list(self.dataset_id('mydataset'))
         assert len(tags) == 2
@@ -214,7 +214,7 @@ class CommonBackendTestSuite(object):
 
     def test_tag_list_no_tags(self, backend):
         p1 = backend.create(self.dataset_id('mydataset'), create_test_datapackage('mydataset'))
-        backend.tag_create(p1.package_id, p1.revision, 'version-1.0', "First version")
+        backend.tag_create(p1.package_id, p1.revision, 'version-1.0', description="First version")
         backend.create(self.dataset_id('otherdataset'), create_test_datapackage('otherdataset'))
 
         tags = backend.tag_list(self.dataset_id('otherdataset'))
@@ -226,7 +226,7 @@ class CommonBackendTestSuite(object):
 
     def test_tag_update(self, backend):
         p1 = backend.create(self.dataset_id('mydataset'), create_test_datapackage('mydataset'))
-        t1 = backend.tag_create(p1.package_id, p1.revision, 'version-1.0', "My nice little tag")
+        t1 = backend.tag_create(p1.package_id, p1.revision, 'version-1.0', description="My nice little tag")
         t2 = backend.tag_update(p1.package_id, t1.name, new_name='v-1.0', new_description='My newer better tag')
 
         with pytest.raises(exc.NotFound):
@@ -241,7 +241,7 @@ class CommonBackendTestSuite(object):
 
     def test_tag_update_desc_only(self, backend):
         p1 = backend.create(self.dataset_id('mydataset'), create_test_datapackage('mydataset'))
-        t1 = backend.tag_create(p1.package_id, p1.revision, 'version-1.0', "My nice little tag")
+        t1 = backend.tag_create(p1.package_id, p1.revision, 'version-1.0', description="My nice little tag")
         backend.tag_update(p1.package_id, t1.name, new_description='My newer better tag')
 
         p2 = backend.fetch(p1.package_id, revision_ref=t1.name)
@@ -253,7 +253,7 @@ class CommonBackendTestSuite(object):
 
     def test_tag_update_name_only(self, backend):
         p1 = backend.create(self.dataset_id('mydataset'), create_test_datapackage('mydataset'))
-        t1 = backend.tag_create(p1.package_id, p1.revision, 'version-1.0', "My nice little tag")
+        t1 = backend.tag_create(p1.package_id, p1.revision, 'version-1.0', description="My nice little tag")
         t2 = backend.tag_update(p1.package_id, t1.name, new_name='v-1.0')
 
         with pytest.raises(exc.NotFound):
@@ -269,15 +269,15 @@ class CommonBackendTestSuite(object):
 
     def test_tag_update_no_chance(self, backend):
         p1 = backend.create(self.dataset_id('mydataset'), create_test_datapackage('mydataset'))
-        t1 = backend.tag_create(p1.package_id, p1.revision, 'version-1.0', "My nice little tag")
+        t1 = backend.tag_create(p1.package_id, p1.revision, 'version-1.0', description="My nice little tag")
         with pytest.raises(ValueError):
             backend.tag_update(p1.package_id, t1.name)
 
     def test_tag_update_existing_name(self, backend):
         p1 = backend.create(self.dataset_id('mydataset'), create_test_datapackage('mydataset'))
-        t1 = backend.tag_create(p1.package_id, p1.revision, 'version-1.0', "My nice little tag")
+        t1 = backend.tag_create(p1.package_id, p1.revision, 'version-1.0', description="My nice little tag")
         p2 = backend.update(self.dataset_id('mydataset'), create_test_datapackage('mydataset', type='csv'))
-        t2 = backend.tag_create(p1.package_id, p2.revision, 'version-1.1', "My next version tag")
+        t2 = backend.tag_create(p1.package_id, p2.revision, 'version-1.1', description="My next version tag")
 
         with pytest.raises(exc.Conflict):
             backend.tag_update(p1.package_id, t1.name, new_name=t2.name)
@@ -296,18 +296,18 @@ class CommonBackendTestSuite(object):
 
     def test_tag_update_invalid_name(self, backend):
         p1 = backend.create(self.dataset_id('mydataset'), create_test_datapackage('mydataset'))
-        t1 = backend.tag_create(p1.package_id, p1.revision, 'version-1.0', "My nice little tag")
+        t1 = backend.tag_create(p1.package_id, p1.revision, 'version-1.0', description="My nice little tag")
 
         with pytest.raises(ValueError):
             backend.tag_update(p1.package_id, t1.name, new_name='ver 1.0')
 
     def test_tag_delete(self, backend):
         p1 = backend.create(self.dataset_id('mydataset'), create_test_datapackage('mydataset'))
-        backend.tag_create(p1.package_id, p1.revision, 'version-1.0', "First version")
+        backend.tag_create(p1.package_id, p1.revision, 'version-1.0', description="First version")
         p2 = backend.update(self.dataset_id('mydataset'), create_test_datapackage('mydataset', type='csv'))
-        backend.tag_create(p1.package_id, p2.revision, 'version-1.1', "Second version")
+        backend.tag_create(p1.package_id, p2.revision, 'version-1.1', description="Second version")
         p3 = backend.create(self.dataset_id('otherdataset'), create_test_datapackage('otherdataset'))
-        backend.tag_create(p3.package_id, p3.revision, 'version-1.0', "First version")
+        backend.tag_create(p3.package_id, p3.revision, 'version-1.0', description="First version")
 
         tags = backend.tag_list(self.dataset_id('mydataset'))
         assert len(tags) == 2
@@ -321,14 +321,14 @@ class CommonBackendTestSuite(object):
 
     def test_tag_delete_no_tag(self, backend):
         p1 = backend.create(self.dataset_id('mydataset'), create_test_datapackage('mydataset'))
-        backend.tag_create(p1.package_id, p1.revision, 'version-1.0', "First version")
+        backend.tag_create(p1.package_id, p1.revision, 'version-1.0', description="First version")
 
         with pytest.raises(exc.NotFound):
             backend.tag_delete(p1.package_id, 'version-1.1')
 
     def test_tag_delete_no_package(self, backend):
         p1 = backend.create(self.dataset_id('mydataset'), create_test_datapackage('mydataset'))
-        backend.tag_create(p1.package_id, p1.revision, 'version-1.0', "First version")
+        backend.tag_create(p1.package_id, p1.revision, 'version-1.0', description="First version")
 
         with pytest.raises(exc.NotFound):
             backend.tag_delete(self.dataset_id('otherdataset'), 'version-1.0')
