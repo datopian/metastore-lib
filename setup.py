@@ -21,7 +21,7 @@ setup(
         'six',
         'typing',
         'typing-extensions',
-        'python-dateutil',
+        'python-dateutil>=2.7.0',
         'fs',
         'pygithub',
     ],
