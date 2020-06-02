@@ -180,7 +180,7 @@ class FilesystemStorage(StorageBackend):
         db_file = u'{}/{}'.format(_get_package_path(package_id), self.REVISION_DB_FILE)
         with self._fs.open(db_file, 'r') as f:
             lines = [json.loads(line) for line in f]
-            revisions = [_parse_rev_log(package_id, l) for l in reversed(lines)]
+            revisions = [_parse_rev_log(package_id, line) for line in reversed(lines)]
         return revisions
 
     def _get_revision(self, package_id, revision):
