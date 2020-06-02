@@ -46,9 +46,27 @@ def backend():
         backend.cleanup__()
 
 
-# @pytest.mark.vcr()
-@pytest.mark.skipif(not (os.environ.get('GITHUB_TOKEN') and os.environ.get('GITHUB_OWNER')),
-                    reason="GITHUB_TOKEN or GITHUB OWNER is not set")
+@pytest.fixture(scope='module')
+def vcr_config():
+    have_github_access = bool(os.environ.get('GITHUB_TOKEN') and os.environ.get('GITHUB_OWNER'))
+    force_record = bool(os.environ.get('DISABLE_VCR'))
+    if have_github_access:
+        if force_record:
+            mode = 'all'
+        else:
+            mode = 'once'
+    else:
+        mode = 'none'
+
+    return {
+        "filter_headers": [
+            ('authorization', 'fake-authz-header')
+        ],
+        "record_mode": mode
+    }
+
+
+@pytest.mark.vcr()
 class TestGitHubBackend(CommonBackendTestSuite):
 
     ID_PREFIX = 'test__'
