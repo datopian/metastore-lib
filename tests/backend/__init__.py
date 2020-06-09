@@ -3,6 +3,7 @@ from typing import Any, Dict
 import pytest
 
 from metastore.backend.filesystem import exc
+from metastore.types import Author
 
 
 def create_test_datapackage(name, **kwargs):
@@ -148,6 +149,23 @@ class CommonBackendTestSuite(object):
         with pytest.raises(exc.NotFound):
             backend.revision_fetch(p1.package_id, '123123123123123123')
 
+    def test_revision_list_multiple_authors(self, backend):
+        author1 = Author(name='Bob Example', email='bob@example.com')
+        author2 = Author(name='Bilbo Baggins', email='bilbo@shire.net')
+        backend.create(self.dataset_id('mydataset'), create_test_datapackage('mydataset'), author=author1)
+        backend.update(self.dataset_id('mydataset'), {"type": "csv"}, partial=True, author=author2,
+                       message="Set type to csv")
+        backend.update(self.dataset_id('mydataset'), {"type": "xls"}, partial=True, author=author1,
+                       message="Set type to xls")
+
+        revs = backend.revision_list(self.dataset_id('mydataset'))
+        assert len(revs) == 3
+        assert revs[2].author == author1
+        assert revs[1].author == author2
+        assert revs[0].author == author1
+        assert revs[0].author.email == 'bob@example.com'
+        assert revs[0].author.name == 'Bob Example'
+
     def test_tag_create_fetch(self, backend):
         p1 = backend.create(self.dataset_id('mydataset'), create_test_datapackage('mydataset'))
         t1 = backend.tag_create(p1.package_id, p1.revision, 'version-1.0', description='My nice little tag')
@@ -223,6 +241,23 @@ class CommonBackendTestSuite(object):
     def test_tag_list_no_package(self, backend):
         with pytest.raises(exc.NotFound):
             backend.tag_list(self.dataset_id('otherdataset'))
+
+    def test_tag_list_authors(self, backend):
+        author1 = Author(name='Bob Example', email='bob@example.com')
+        author2 = Author(name='Bilbo Baggins', email='bilbo@shire.net')
+        author3 = Author(name='Frodo Baggins', email='frodo@shire.net')
+        p1 = backend.create(self.dataset_id('mydataset'), create_test_datapackage('mydataset'), author=author1)
+        backend.tag_create(p1.package_id, p1.revision, 'version-1.0', description="First version", author=author2)
+        p2 = backend.update(self.dataset_id('mydataset'), create_test_datapackage('mydataset', type='csv'),
+                            author=author1)
+        backend.tag_create(p1.package_id, p2.revision, 'version-1.1', description="Second version", author=author3)
+
+        tags = backend.tag_list(self.dataset_id('mydataset'))
+        assert len(tags) == 2
+        assert tags[0].author == author2
+        assert tags[1].author == author3
+        assert tags[1].author.email == 'frodo@shire.net'
+        assert tags[1].author.name == 'Frodo Baggins'
 
     def test_tag_update(self, backend):
         p1 = backend.create(self.dataset_id('mydataset'), create_test_datapackage('mydataset'))

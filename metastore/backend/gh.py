@@ -304,6 +304,27 @@ def _is_sha(ref, chars=40):
         return False
     return True
 
+
+def _get_git_matching_refs(repo, ref):
+    """This is backported from PyGithub 1.51 to support Python 2.7 which is no
+    longer supported for that version.
+
+    If we ever drop Python 2.7 support, this code is no longer needed and
+    :meth:``github.Repository.Repository.get_git_matching_refs`` can be called
+    directly.
+    """
+    if hasattr(repo, 'get_git_matching_refs'):
+        return repo.get_git_matching_refs(ref)
+
+    assert isinstance(ref, str), ref
+    return PaginatedList.PaginatedList(
+        GitRef.GitRef,
+        repo._requester,
+        repo.url + "/git/matching-refs/" + ref,
+        None,
+    )
+
+
 # class CKANGitClient(object):
 #
 #     def __init__(self, token, pkg_dict):
@@ -441,23 +462,3 @@ def _is_sha(ref, chars=40):
 #
 #         except Exception as e:
 #             return False
-
-
-def _get_git_matching_refs(repo, ref):
-    """This is backported from PyGithub 1.51 to support Python 2.7 which is no
-    longer supported for that version.
-
-    If we ever drop Python 2.7 support, this code is no longer needed and
-    :meth:``github.Repository.Repository.get_git_matching_refs`` can be called
-    directly.
-    """
-    if hasattr(repo, 'get_git_matching_refs'):
-        return repo.get_git_matching_refs(ref)
-
-    assert isinstance(ref, str), ref
-    return PaginatedList.PaginatedList(
-        GitRef.GitRef,
-        repo._requester,
-        repo.url + "/git/matching-refs/" + ref,
-        None,
-    )
