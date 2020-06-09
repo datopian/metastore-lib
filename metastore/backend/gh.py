@@ -6,12 +6,14 @@ revisions and tags. This implementation is based on GitHub's Web API, and will
 not support other Git hosting services.
 """
 import json
-from typing import List, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 from github import (AuthenticatedUser, Commit, GitCommit, Github, GithubException, GitRef, GitTag, InputGitTreeElement,
                     Organization, PaginatedList, Repository, UnknownObjectException)
+from github.GithubObject import NotSet
+from github.InputGitAuthor import InputGitAuthor
 
-from ..types import PackageRevisionInfo, TagInfo
+from ..types import Author, PackageRevisionInfo, TagInfo
 from . import StorageBackend, exc
 
 
@@ -28,15 +30,16 @@ class GitHubStorage(StorageBackend):
     DEFAULT_COMMIT_MESSAGE = 'Datapackage updated'
     DEFAULT_TAG_MESSAGE = 'Tagging revision'
 
-    def __init__(self, github_options, default_owner=None, default_branch=DEFAULT_BRANCH,
+    def __init__(self, github_options, default_owner=None, default_author=None, default_branch=DEFAULT_BRANCH,
                  default_commit_message=DEFAULT_COMMIT_MESSAGE):
         self.gh = Github(**github_options)
         self._default_owner = default_owner
+        self._default_author = default_author
         self._default_branch = default_branch
         self._default_commit_message = default_commit_message
         self._user = None
 
-    def create(self, package_id, metadata, change_desc=None):
+    def create(self, package_id, metadata, author=None, message=None):
         owner, repo_name = self._parse_id(package_id)
 
         try:
@@ -46,8 +49,8 @@ class GitHubStorage(StorageBackend):
                 raise exc.Conflict("Datapackage with the same ID already exists")
             raise
 
-        if change_desc is None:
-            change_desc = 'Initial datapackage commit'
+        if message is None:
+            message = 'Initial datapackage commit'
 
         try:
             datapackage = self._create_file('datapackage.json', json.dumps(metadata, indent=2))
@@ -55,7 +58,7 @@ class GitHubStorage(StorageBackend):
             # Create an initial README.md file so we can start using the low-level Git API
             repo.create_file('README.md', 'Initialize data repository', self.DEFAULT_README)
             head = repo.get_branch(self._default_branch)
-            commit = self._create_commit(repo, [datapackage], head.commit, change_desc)
+            commit = self._create_commit(repo, [datapackage], head.commit, author, message)
 
             # TODO: handle resources / Git LFS config and pointer files
 
@@ -63,7 +66,8 @@ class GitHubStorage(StorageBackend):
             self.delete(package_id)
             raise
 
-        return PackageRevisionInfo(package_id, commit.sha, commit.author.date, change_desc, metadata)
+        c_author = Author(commit.author.name, commit.author.email)
+        return PackageRevisionInfo(package_id, commit.sha, commit.author.date, c_author, message, metadata)
 
     def fetch(self, package_id, revision_ref=None):
         repo = self._get_repo(package_id)
@@ -91,14 +95,15 @@ class GitHubStorage(StorageBackend):
         except ValueError:
             raise ValueError("Unable to parse datapackage.json file in {}@{}".format(package_id, revision_ref))
 
-        return PackageRevisionInfo(package_id, commit.sha, commit.author.date, commit.message, datapackage)
+        author = Author(commit.author.name, commit.author.email)
+        return PackageRevisionInfo(package_id, commit.sha, commit.author.date, author, commit.message, datapackage)
 
-    def update(self, package_id, metadata, partial=False, base_revision_ref=None, update_description=None):
+    def update(self, package_id, metadata, author=None, partial=False, base_revision_ref=None, message=None):
         parent = self.fetch(package_id, base_revision_ref)
         owner, repo_name = self._parse_id(package_id)
 
-        if update_description is None:
-            update_description = self._default_commit_message
+        if message is None:
+            message = self._default_commit_message
 
         if partial:
             parent.package.update(metadata)
@@ -108,8 +113,9 @@ class GitHubStorage(StorageBackend):
         datapackage = self._create_file('datapackage.json', json.dumps(metadata, indent=2))
         repo = self._get_owner(owner).get_repo(repo_name)
         head = repo.get_branch(self._default_branch)
-        commit = self._create_commit(repo, [datapackage], head.commit, update_description)
-        return PackageRevisionInfo(package_id, commit.sha, commit.author.date, update_description, metadata)
+        commit = self._create_commit(repo, [datapackage], head.commit, author, message)
+        c_author = Author(commit.author.name, commit.author.email)
+        return PackageRevisionInfo(package_id, commit.sha, commit.author.date, c_author, message, metadata)
 
     def delete(self, package_id):
         repo = self._get_repo(package_id)
@@ -124,14 +130,15 @@ class GitHubStorage(StorageBackend):
     def revision_fetch(self, package_id, revision_ref):
         return self.fetch(package_id, revision_ref)
 
-    def tag_create(self, package_id, revision_ref, name, description=None):
+    def tag_create(self, package_id, revision_ref, name, author=None, description=None):
         repo = self._get_repo(package_id)
         revision = self.revision_fetch(package_id, revision_ref)
         if description is None:
             description = self.DEFAULT_TAG_MESSAGE
 
-        git_tag = self._create_tag(repo, name, description, revision_ref)
-        return TagInfo(package_id, name, git_tag.tagger.date, revision_ref, revision, description)
+        git_tag = self._create_tag(repo, name, description, revision_ref, author)
+        t_author = Author(git_tag.tagger.name, git_tag.tagger.email)
+        return TagInfo(package_id, name, git_tag.tagger.date, revision_ref, t_author, revision, description)
 
     def tag_list(self, package_id):
         repo = self._get_repo(package_id)
@@ -149,7 +156,7 @@ class GitHubStorage(StorageBackend):
             raise exc.NotFound('Could not find tag {} for package {}', tag, package_id)
         return self._tag_ref_to_taginfo(package_id, repo, ref)
 
-    def tag_update(self, package_id, tag, new_name=None, new_description=None):
+    def tag_update(self, package_id, tag, author=None, new_name=None, new_description=None):
         if new_name is None and new_description is None:
             raise ValueError("Expecting at least one of new_name or new_description to be specified")
 
@@ -162,13 +169,15 @@ class GitHubStorage(StorageBackend):
             # Nothing to change here
             return tag_info
         elif name != tag_info.name:
-            git_tag = self._create_tag(repo, name, description, tag_info.revision_ref)
+            git_tag = self._create_tag(repo, name, description, tag_info.revision_ref, author)
             repo.get_git_ref('tags/{}'.format(tag_info.name)).delete()
         else:
             git_tag = repo.create_git_tag(name, description, tag_info.revision_ref, 'commit')
             repo.get_git_ref('tags/{}'.format(name)).edit(git_tag.sha)
 
-        return TagInfo(package_id, name, git_tag.tagger.date, tag_info.revision_ref, tag_info.revision, description)
+        t_author = Author(git_tag.tagger.name, git_tag.tagger.email)
+        return TagInfo(package_id, name, git_tag.tagger.date, tag_info.revision_ref, t_author, tag_info.revision,
+                       description)
 
     def tag_delete(self, package_id, tag):
         repo = self._get_repo(package_id)
@@ -210,26 +219,28 @@ class GitHubStorage(StorageBackend):
         except UnknownObjectException:
             raise exc.NotFound('Could not find package {}', package_id)
 
-    def _create_commit(self, repo, files, parent_commit, message):
-        # type: (Repository, List[InputGitTreeElement], Commit, str) -> GitCommit
+    def _create_commit(self, repo, files, parent_commit, author, message):
+        # type: (Repository, List[InputGitTreeElement], Commit, Optional[Author], str) -> GitCommit
         """Create a git Commit
         """
         # Create tree
         tree = repo.create_git_tree(files, parent_commit.commit.tree)
         # Create commit
-        commit = repo.create_git_commit(message, tree, [parent_commit.commit])
+        author = self._verify_author(author)
+        commit = repo.create_git_commit(message, tree, [parent_commit.commit], author=author)
         # Update refs
         ref = repo.get_git_ref('heads/{}'.format(self._default_branch))
         ref.edit(commit.sha)
 
         return commit
 
-    def _create_tag(self, repo, name, description, revision_ref):
-        # type: (Repository.Repository, str, str, str) -> GitTag.GitTag
+    def _create_tag(self, repo, name, description, revision_ref, author):
+        # type: (Repository.Repository, str, str, str, Optional[Author]) -> GitTag.GitTag
         """Low level operations for creating a git tag
         """
+        author = self._verify_author(author)
         try:
-            git_tag = repo.create_git_tag(name, description, revision_ref, 'commit')
+            git_tag = repo.create_git_tag(name, description, revision_ref, 'commit', tagger=author)
             repo.create_git_ref('refs/tags/{}'.format(name), git_tag.sha)
         except GithubException as e:
             if e.status == 422:
@@ -241,13 +252,26 @@ class GitHubStorage(StorageBackend):
 
         return git_tag
 
+    def _verify_author(self, author):
+        # type: (Optional[Author]) -> Union[InputGitAuthor, NotSet]
+        """Check we have an author and return something Git can use to set commit / tag author
+        """
+        if author and (author.name or author.email):
+            return InputGitAuthor(author.name, author.email)
+        elif self._default_author:
+            return InputGitAuthor(self._default_author.name, self._default_author.email)
+        else:
+            return NotSet
+
     def _tag_ref_to_taginfo(self, package_id, repo, ref):
         # type: (str, Repository.Repository, GitRef.GitRef) -> TagInfo
         """Convert a GitRef for a tag into a TagInfo object
         """
         tag_obj = repo.get_git_tag(ref.object.sha)
         revision = self.revision_fetch(package_id, tag_obj.object.sha)
-        return TagInfo(package_id, tag_obj.tag, tag_obj.tagger.date, tag_obj.object.sha, revision, tag_obj.message)
+        author = Author(tag_obj.tagger.name, tag_obj.tagger.email)
+        return TagInfo(package_id, tag_obj.tag, tag_obj.tagger.date, tag_obj.object.sha, author, revision,
+                       tag_obj.message)
 
     @staticmethod
     def _create_file(path, content):
@@ -263,6 +287,7 @@ def _commit_to_revinfo(package_id, commit):
     return PackageRevisionInfo(package_id,
                                commit.sha,
                                commit.commit.author.date,
+                               Author(commit.commit.author.name, commit.commit.author.email),
                                commit.commit.message)
 
 
@@ -278,6 +303,27 @@ def _is_sha(ref, chars=40):
     except ValueError:
         return False
     return True
+
+
+def _get_git_matching_refs(repo, ref):
+    """This is backported from PyGithub 1.51 to support Python 2.7 which is no
+    longer supported for that version.
+
+    If we ever drop Python 2.7 support, this code is no longer needed and
+    :meth:``github.Repository.Repository.get_git_matching_refs`` can be called
+    directly.
+    """
+    if hasattr(repo, 'get_git_matching_refs'):
+        return repo.get_git_matching_refs(ref)
+
+    assert isinstance(ref, str), ref
+    return PaginatedList.PaginatedList(
+        GitRef.GitRef,
+        repo._requester,
+        repo.url + "/git/matching-refs/" + ref,
+        None,
+    )
+
 
 # class CKANGitClient(object):
 #
@@ -416,23 +462,3 @@ def _is_sha(ref, chars=40):
 #
 #         except Exception as e:
 #             return False
-
-
-def _get_git_matching_refs(repo, ref):
-    """This is backported from PyGithub 1.51 to support Python 2.7 which is no
-    longer supported for that version.
-
-    If we ever drop Python 2.7 support, this code is no longer needed and
-    :meth:``github.Repository.Repository.get_git_matching_refs`` can be called
-    directly.
-    """
-    if hasattr(repo, 'get_git_matching_refs'):
-        return repo.get_git_matching_refs(ref)
-
-    assert isinstance(ref, str), ref
-    return PaginatedList.PaginatedList(
-        GitRef.GitRef,
-        repo._requester,
-        repo.url + "/git/matching-refs/" + ref,
-        None,
-    )

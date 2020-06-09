@@ -17,7 +17,7 @@ from dateutil.parser import isoparse
 from fs import open_fs
 from fs.errors import DirectoryExists, ResourceNotFound
 
-from ..types import PackageRevisionInfo, TagInfo
+from ..types import Author, PackageRevisionInfo, TagInfo
 from . import StorageBackend, exc
 
 
@@ -32,15 +32,16 @@ class FilesystemStorage(StorageBackend):
 
     See the PyFilesystem documentation for types of supported file systems.
     """
-    REVISION_DB_FILE = 'revisions.csv'
+    REVISION_DB_FILE = 'revisions.jsonl'
 
     TAG_NAME_RE = re.compile(r'^[\w\-+.,]+\Z')
 
-    def __init__(self, uri):
-        # type: (str) -> None
+    def __init__(self, uri, default_author=None):
+        # type: (str, Optional[Author]) -> None
         self._fs = open_fs(uri)
+        self._default_author = default_author
 
-    def create(self, package_id, metadata, revision_desc=None):
+    def create(self, package_id, metadata, author=None, message=None):
         try:
             package_dir = self._fs.makedirs(_get_package_path(package_id))
         except DirectoryExists:
@@ -50,7 +51,7 @@ class FilesystemStorage(StorageBackend):
         with self._fs.lock():
             with package_dir.open(revision, 'wb') as f:
                 f.write(json.dumps(metadata).encode('utf8'))
-            rev_info = self._log_revision(package_id, revision, revision_desc)
+            rev_info = self._log_revision(package_id, revision, author, message)
         rev_info.package = metadata
         return rev_info
 
@@ -75,7 +76,7 @@ class FilesystemStorage(StorageBackend):
 
         return revision
 
-    def update(self, package_id, metadata, partial=False, base_revision_ref=None, update_description=None):
+    def update(self, package_id, metadata, author=None, partial=False, base_revision_ref=None, message=None):
         current = self.fetch(package_id, base_revision_ref)
 
         if partial:
@@ -86,7 +87,7 @@ class FilesystemStorage(StorageBackend):
             revision = _make_revision_id()
             with self._fs.open(u'{}/{}'.format(_get_package_path(package_id), revision), 'wb') as f:
                 f.write(json.dumps(metadata).encode('utf8'))
-            rev_info = self._log_revision(package_id, revision, update_description)
+            rev_info = self._log_revision(package_id, revision, author, message)
         rev_info.package = metadata
         return rev_info
 
@@ -113,11 +114,11 @@ class FilesystemStorage(StorageBackend):
             raise exc.NotFound('Could not find package {}@{}', package_id, revision_ref)
         return revision
 
-    def tag_create(self, package_id, revision_ref, name, description=None):
+    def tag_create(self, package_id, revision_ref, name, author=None, description=None):
         if not self._validate_tag_name(name):
             raise ValueError("Invalid tag name: {}".format(name))
         revision = self.revision_fetch(package_id, revision_ref)
-        return self._log_tag(revision, name, description)
+        return self._log_tag(revision, name, author, description)
 
     def tag_list(self, package_id):
         return self._get_tags(package_id)
@@ -133,7 +134,7 @@ class FilesystemStorage(StorageBackend):
         tag_info.revision = self.revision_fetch(package_id, tag_info.revision_ref)
         return tag_info
 
-    def tag_update(self, package_id, tag, new_name=None, new_description=None):
+    def tag_update(self, package_id, tag, author=None, new_name=None, new_description=None):
         if new_name is None and new_description is None:
             raise ValueError("Expecting at least one of new_name or new_description to be specified")
         elif new_name and not self._validate_tag_name(new_name):
@@ -145,7 +146,7 @@ class FilesystemStorage(StorageBackend):
         overwrite = tag_info.name == name
 
         with self._fs.lock():
-            tag_info = self._log_tag(tag_info.revision, name, description, allow_overwrite=overwrite)
+            tag_info = self._log_tag(tag_info.revision, name, author, description, allow_overwrite=overwrite)
             if not overwrite:
                 self.tag_delete(package_id, tag)
 
@@ -159,17 +160,18 @@ class FilesystemStorage(StorageBackend):
             except ResourceNotFound:
                 raise exc.NotFound('Could not find tag {} for package {}', tag, package_id)
 
-    def _log_revision(self, package_id, revision, revision_desc=None):
-        # type: (str, str, Optional[str]) -> PackageRevisionInfo
+    def _log_revision(self, package_id, revision, author, message=None):
+        # type: (str, str, Optional[Author], Optional[str]) -> PackageRevisionInfo
         """Log a revision
         """
         db_file = u'{}/{}'.format(_get_package_path(package_id), self.REVISION_DB_FILE)
         now = datetime.now(tz=pytz.utc).isoformat()
+        author = self._verify_author(author)
+
         with self._fs.open(db_file, 'ab') as f:
-            encoded_desc = base64.b64encode(revision_desc.encode('utf8')) if revision_desc else b''
-            line = '{},{},{}\n'.format(revision, now, encoded_desc.decode('utf8'))
-            f.write(line.encode('utf8'))
-        return PackageRevisionInfo(package_id, revision, now, revision_desc)
+            line = [revision, now, message, author.name, author.email]
+            f.write('{}\n'.format(json.dumps(line)).encode('utf8'))
+        return PackageRevisionInfo(package_id, revision, now, author, message)
 
     def _get_revisions(self, package_id):
         # type: (str) -> List[PackageRevisionInfo]
@@ -177,8 +179,9 @@ class FilesystemStorage(StorageBackend):
         """
         db_file = u'{}/{}'.format(_get_package_path(package_id), self.REVISION_DB_FILE)
         with self._fs.open(db_file, 'r') as f:
-            rev_data = [line.split(',', 2) for line in f]
-        return [_parse_rev_log(package_id, r) for r in reversed(rev_data)]
+            lines = [json.loads(line) for line in f]
+            revisions = [_parse_rev_log(package_id, line) for line in reversed(lines)]
+        return revisions
 
     def _get_revision(self, package_id, revision):
         # type: (str, str) -> PackageRevisionInfo
@@ -189,7 +192,7 @@ class FilesystemStorage(StorageBackend):
         db_file = u'{}/{}'.format(_get_package_path(package_id), self.REVISION_DB_FILE)
         with self._fs.open(db_file, 'r') as f:
             for line in f:
-                rev_data = line.split(',', 2)
+                rev_data = json.loads(line)
                 if rev_data[0] == revision:
                     return _parse_rev_log(package_id, rev_data)
 
@@ -199,23 +202,24 @@ class FilesystemStorage(StorageBackend):
         """
         return bool(self.TAG_NAME_RE.match(name))
 
-    def _log_tag(self, revision, tag_name, tag_description, allow_overwrite=False):
-        # type: (PackageRevisionInfo, str, str) -> TagInfo
+    def _log_tag(self, revision, tag_name, author, tag_description, allow_overwrite=False):
+        # type: (PackageRevisionInfo, str, Optional[Author], str, bool) -> TagInfo
         """Log a new tag for an existing revision
         """
         tags_path = u'{}/{}'.format(_get_package_path(revision.package_id), 'tags')
         now = datetime.now(tz=pytz.utc)
         tags_dir = self._fs.makedirs(tags_path, recreate=True)
+        author = self._verify_author(author)
 
         with tags_dir.lock():
             if not allow_overwrite and tags_dir.exists(tag_name):
                 raise exc.Conflict('Tag already exists: {}'.format(tag_name))
 
             with tags_dir.open(tag_name, 'wb') as f:
-                f.write('{},{},'.format(now.isoformat(), revision.revision).encode('utf8'))
-                if tag_description:
-                    f.write(base64.b64encode(tag_description.encode('utf8')))
-        return TagInfo(revision.package_id, tag_name, now, revision.revision, revision, description=tag_description)
+                line = [now.isoformat(), revision.revision, tag_description, author.name, author.email]
+                f.write(json.dumps(line).encode('utf8'))
+        return TagInfo(revision.package_id, tag_name, now, revision.revision, author, revision,
+                       description=tag_description)
 
     def _get_tag(self, package_id, tag_name):
         # type: (str, str) -> Optional[TagInfo]
@@ -228,11 +232,11 @@ class FilesystemStorage(StorageBackend):
             if not tag_dir:
                 return None
             with tag_dir.open(tag_name, 'r') as f:
-                line = f.read()
+                line = json.load(f)
         except ResourceNotFound:
             return None
 
-        return _parse_tag_file_content(package_id, tag_name, line)
+        return _tag_file_to_taginfo(package_id, tag_name, line)
 
     def _get_tags(self, package_id):
         # type: (str) -> List[TagInfo]
@@ -245,8 +249,8 @@ class FilesystemStorage(StorageBackend):
 
         for tag_name in tag_dir.listdir('.'):
             with tag_dir.open(tag_name, 'r') as f:
-                tag_line = f.read()
-            tags.append(_parse_tag_file_content(package_id, tag_name, tag_line))
+                tag_line = json.load(f)
+            tags.append(_tag_file_to_taginfo(package_id, tag_name, tag_line))
 
         return sorted(tags, key=attrgetter('created'))
 
@@ -262,6 +266,16 @@ class FilesystemStorage(StorageBackend):
             return package_dir.opendir('tags')
         except ResourceNotFound:
             return None
+
+    def _verify_author(self, author):
+        # type: (Optional[Author]) -> Author
+        """Verify that we have a valid author object
+        """
+        if author:
+            return author
+        if self._default_author:
+            return self._default_author
+        return Author(None, None)
 
 
 def _get_package_path(package_id):
@@ -297,15 +311,33 @@ def _parse_rev_log(package_id, rev_data):
     # type: (str, List[str]) -> PackageRevisionInfo
     """Parse a line from the revision log and return a RevisionInfo object
     """
-    return PackageRevisionInfo(package_id, rev_data[0], isoparse(rev_data[1]),
-                               description=_decode_text_blob(rev_data[2]))
+    if rev_data[3] or rev_data[4]:
+        author = Author(name=rev_data[3] or None,
+                        email=rev_data[4] or None)
+    else:
+        author = None
+
+    return PackageRevisionInfo(package_id=package_id,
+                               revision=rev_data[0],
+                               created=isoparse(rev_data[1]),
+                               author=author,
+                               description=rev_data[2])
 
 
-def _parse_tag_file_content(package_id, tag_name, tag_line):
+def _tag_file_to_taginfo(package_id, tag_name, tag_data):
     # type: (str, str, str) -> TagInfo
-    tag_data = tag_line.split(',', 2)
-    return TagInfo(package_id, tag_name, isoparse(tag_data[0]), tag_data[1],
-                   description=_decode_text_blob(tag_data[2]))
+    if tag_data[3] or tag_data[4]:
+        author = Author(name=tag_data[3] or None,
+                        email=tag_data[4] or None)
+    else:
+        author = None
+
+    return TagInfo(package_id=package_id,
+                   name=tag_name,
+                   created=isoparse(tag_data[0]),
+                   revision_ref=tag_data[1],
+                   description=tag_data[2],
+                   author=author)
 
 
 def _decode_text_blob(encoded_desc):
