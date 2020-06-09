@@ -194,7 +194,7 @@ class GitHubStorage(StorageBackend):
         # type: (str) -> Union[AuthenticatedUser, Organization]
         if self._user is None:
             self._user = self.gh.get_user()
-        if owner == self._user.name:
+        if owner == self._user.login:
             return self._user
         else:
             return self.gh.get_organization(owner)
