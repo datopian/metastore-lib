@@ -299,7 +299,7 @@ class GitHubStorage(StorageBackend):
 
         for path in paths:
             if path[0] == '/' or '../' in path:
-                raise ValueError('Resource path contains invalid characters: {}'.format(path))
+                raise ValueError('Resource path is absolute or contains parent dir references: {}'.format(path))
 
         files = [self._create_file(r['path'], lfs_helpers.create_lfs_pointer_file(r)) for r in file_resources]
         files.append(self._create_file('.gitattributes', lfs_helpers.create_git_attributes_file(paths)))
