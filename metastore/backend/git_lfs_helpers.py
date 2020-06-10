@@ -42,13 +42,16 @@ def has_lfs_attributes(resource):
     # type: (Dict[str, Any]) -> bool
     """Tell if a resource has the attributes required for an LFS-stored resource
 
-    >>> has_lfs_attributes({"path": "data.csv", "size": 1234, "sha256": "someshavalue"})
+    >>> has_lfs_attributes({"path": "data.csv", "bytes": 1234, "sha256": "someshavalue"})
     True
+
+    >>> has_lfs_attributes({"path": "data.csv", "size": 1234, "sha256": "someshavalue"})
+    False
 
     >>> has_lfs_attributes({"path": "data.csv", "sha256": "someshavalue"})
     False
 
-    >>> has_lfs_attributes({"path": "data.csv", "sha256": "someshavalue"})
+    >>> has_lfs_attributes({"path": "data.csv", "bytes": 1234})
     False
 
     >>> has_lfs_attributes({"path": "data.csv"})
@@ -57,7 +60,7 @@ def has_lfs_attributes(resource):
     if not isinstance(resource.get('sha256'), str):
         return False
 
-    if not isinstance(resource.get('size'), int):
+    if not isinstance(resource.get('bytes'), int):
         return False
 
     return True
@@ -90,4 +93,4 @@ def create_lfs_pointer_file(resource):
 
     return ('version https://git-lfs.github.com/spec/v1\n'
             'oid sha256:{}\n'
-            'size {}\n').format(resource['sha256'], resource['size'])
+            'size {}\n').format(resource['sha256'], resource['bytes'])

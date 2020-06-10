@@ -64,7 +64,7 @@ def create_test_lfs_package(name, **kwargs):
     pkg = create_test_datapackage(name, **kwargs)
     pkg['resources'][0].update({
         "sha256": '0f1128046248f83dc9b9ab187e16fad0ff596128f1524d05a9a77c4ad932f10a',
-        "size": 1744
+        "bytes": 1744
     })
     return pkg
 
@@ -117,7 +117,7 @@ class TestGitHubBackend(CommonBackendTestSuite):
 
         p2_info = lfs_backend.fetch(self.dataset_id('mydataset'))
         assert p1_info.package == p2_info.package
-        assert p2_info.package['resources'][0]['size'] == 1744
+        assert p2_info.package['resources'][0]['bytes'] == 1744
 
     def test_datapackage_create_with_lfs_conflicting_resources(self, lfs_backend):
         """Test the backend does not accept conflicting LFS resources
@@ -125,7 +125,7 @@ class TestGitHubBackend(CommonBackendTestSuite):
         datapkg = create_test_lfs_package('mydataset')
         datapkg['resources'].append({
             "path": "data/myresource.csv",
-            "size": 1515,
+            "bytes": 1515,
             "sha256": "08419486253228102a04995a0376ffdaec0bf1dbaf9cff3669f34d29ad483a02",
         })
 
@@ -143,7 +143,7 @@ class TestGitHubBackend(CommonBackendTestSuite):
         datapkg = create_test_lfs_package('mydataset')
         datapkg['resources'][0].update({
             "path": path,
-            "size": 1515,
+            "bytes": 1515,
             "sha256": "08419486253228102a04995a0376ffdaec0bf1dbaf9cff3669f34d29ad483a02",
         })
 

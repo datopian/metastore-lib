@@ -28,7 +28,7 @@ def test_create_lfs_config_file_custom_remote_name():
 
 def create_lfs_pointer_file():
     resource = {"sha256": "0f1128046248f83dc9b9ab187e16fad0ff596128f1524d05a9a77c4ad932f10a",
-                "size": 1744,
+                "bytes": 1744,
                 "path": "data/resource.csv"}
 
     expected = ('version https://git-lfs.github.com/spec/v1\n'
@@ -39,10 +39,11 @@ def create_lfs_pointer_file():
 
 
 @pytest.mark.parametrize('resource', [
-    {"size": 1744, "path": "data/resource.csv"},
+    {"bytes": 1744, "path": "data/resource.csv"},
     {"sha256": "0f1128046248f83dc9b9ab187e16fad0ff596128f1524d05a9a77c4ad932f10a"},
-    {"size": 1744, "sha256": "ef42bab1191da272f13935f78c401e3de0c11afb"},
-    {"size": 1744, "sha256": "0f112804X248f83dc9b9ab187e16fad0ff596128f1524d05a9a77c4ad932f10a"},
+    {"bytes": 1744, "sha256": "ef42bab1191da272f13935f78c401e3de0c11afb"},
+    {"bytes": 1744, "sha256": "0f112804X248f83dc9b9ab187e16fad0ff596128f1524d05a9a77c4ad932f10a"},
+    {"sha256": "0f1128046248f83dc9b9ab187e16fad0ff596128f1524d05a9a77c4ad932f10a", "size": 1744},
 ])
 def create_lfs_pointer_file_invalid_resource(resource):
     with pytest.raises(ValueError):
