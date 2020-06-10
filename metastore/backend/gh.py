@@ -6,7 +6,7 @@ revisions and tags. This implementation is based on GitHub's Web API, and will
 not support other Git hosting services.
 """
 import json
-from typing import List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from github import (AuthenticatedUser, Commit, GitCommit, Github, GithubException, GitRef, GitTag, InputGitTreeElement,
                     Organization, PaginatedList, Repository, UnknownObjectException)
@@ -14,7 +14,9 @@ from github.GithubObject import NotSet
 from github.InputGitAuthor import InputGitAuthor
 
 from ..types import Author, PackageRevisionInfo, TagInfo
+from ..util import is_hex_str
 from . import StorageBackend, exc
+from . import git_lfs_helpers as lfs_helpers
 
 
 class GitHubStorage(StorageBackend):
@@ -30,9 +32,12 @@ class GitHubStorage(StorageBackend):
     DEFAULT_COMMIT_MESSAGE = 'Datapackage updated'
     DEFAULT_TAG_MESSAGE = 'Tagging revision'
 
-    def __init__(self, github_options, default_owner=None, default_author=None, default_branch=DEFAULT_BRANCH,
+    def __init__(self, github_options, lfs_server_url=None, default_owner=None, default_author=None,
+                 default_branch=DEFAULT_BRANCH,
                  default_commit_message=DEFAULT_COMMIT_MESSAGE):
+        # type: (Dict[str, Any], Optional[str], Optional[str], Optional[Author], Optional[str], Optional[str]) -> None
         self.gh = Github(**github_options)
+        self._lfs_server_url = lfs_server_url
         self._default_owner = default_owner
         self._default_author = default_author
         self._default_branch = default_branch
@@ -41,6 +46,8 @@ class GitHubStorage(StorageBackend):
 
     def create(self, package_id, metadata, author=None, message=None):
         owner, repo_name = self._parse_id(package_id)
+        datapackage = self._create_file('datapackage.json', json.dumps(metadata, indent=2))
+        files = [datapackage] + self._create_lfs_files(metadata)
 
         try:
             repo = self._get_owner(owner).create_repo(repo_name)
@@ -53,12 +60,10 @@ class GitHubStorage(StorageBackend):
             message = 'Initial datapackage commit'
 
         try:
-            datapackage = self._create_file('datapackage.json', json.dumps(metadata, indent=2))
-
             # Create an initial README.md file so we can start using the low-level Git API
             repo.create_file('README.md', 'Initialize data repository', self.DEFAULT_README)
             head = repo.get_branch(self._default_branch)
-            commit = self._create_commit(repo, [datapackage], head.commit, author, message)
+            commit = self._create_commit(repo, files, head.commit, author, message)
 
             # TODO: handle resources / Git LFS config and pointer files
 
@@ -76,7 +81,7 @@ class GitHubStorage(StorageBackend):
                 ref = repo.get_git_ref('heads/{}'.format(self._default_branch))
                 assert ref.object.type == 'commit'
                 revision_ref = ref.object.sha
-            elif not _is_sha(revision_ref):
+            elif not is_hex_str(revision_ref):
                 tag = self.tag_fetch(package_id, revision_ref)
                 revision_ref = tag.revision_ref
 
@@ -99,8 +104,10 @@ class GitHubStorage(StorageBackend):
         return PackageRevisionInfo(package_id, commit.sha, commit.author.date, author, commit.message, datapackage)
 
     def update(self, package_id, metadata, author=None, partial=False, base_revision_ref=None, message=None):
-        parent = self.fetch(package_id, base_revision_ref)
+        datapackage = self._create_file('datapackage.json', json.dumps(metadata, indent=2))
+        files = [datapackage] + self._create_lfs_files(metadata)
         owner, repo_name = self._parse_id(package_id)
+        parent = self.fetch(package_id, base_revision_ref)
 
         if message is None:
             message = self._default_commit_message
@@ -109,11 +116,9 @@ class GitHubStorage(StorageBackend):
             parent.package.update(metadata)
             metadata = parent.package
 
-        # TODO: handle resources / Git LFS config and pointer files
-        datapackage = self._create_file('datapackage.json', json.dumps(metadata, indent=2))
         repo = self._get_owner(owner).get_repo(repo_name)
         head = repo.get_branch(self._default_branch)
-        commit = self._create_commit(repo, [datapackage], head.commit, author, message)
+        commit = self._create_commit(repo, files, head.commit, author, message)
         c_author = Author(commit.author.name, commit.author.email)
         return PackageRevisionInfo(package_id, commit.sha, commit.author.date, c_author, message, metadata)
 
@@ -273,6 +278,35 @@ class GitHubStorage(StorageBackend):
         return TagInfo(package_id, tag_obj.tag, tag_obj.tagger.date, tag_obj.object.sha, author, revision,
                        tag_obj.message)
 
+    def _create_lfs_files(self, datapackage):
+        # type: (Dict[str, Any]) -> List[InputGitTreeElement]
+        """Create LFS pointer files and config files, if we need to
+
+        :raise ValueError: If resources with conflicting file names are found
+        :raise ValueError: If resources with invalid paths are found
+        """
+        if not self._lfs_server_url:
+            return []
+
+        file_resources = [r for r in datapackage.get('resources', [])
+                          if lfs_helpers.is_posix_path_resource(r) and lfs_helpers.has_lfs_attributes(r)]
+        if len(file_resources) == 0:
+            return []
+
+        paths = set([r['path'] for r in file_resources])
+        if len(paths) != len(file_resources):
+            raise ValueError('Data package contains resources with conflicting file names')
+
+        for path in paths:
+            if path[0] == '/' or '../' in path:
+                raise ValueError('Resource path is absolute or contains parent dir references: {}'.format(path))
+
+        files = [self._create_file(r['path'], lfs_helpers.create_lfs_pointer_file(r)) for r in file_resources]
+        files.append(self._create_file('.gitattributes', lfs_helpers.create_git_attributes_file(paths)))
+        files.append(self._create_file('.lfsconfig', lfs_helpers.create_lfs_config_file(self._lfs_server_url)))
+
+        return files
+
     @staticmethod
     def _create_file(path, content):
         # type: (str, bytes) -> InputGitTreeElement
@@ -291,22 +325,8 @@ def _commit_to_revinfo(package_id, commit):
                                commit.commit.message)
 
 
-def _is_sha(ref, chars=40):
-    # type: (str, int) -> bool
-    """Check if a string is a revision SHA like string
-    This will return True if the ref is a 40-character hex number
-    """
-    if len(ref) != chars:
-        return False
-    try:
-        int(ref, 16)
-    except ValueError:
-        return False
-    return True
-
-
 def _get_git_matching_refs(repo, ref):
-    """This is backported from PyGithub 1.51 to support Python 2.7 which is no
+    """This is back-ported from PyGithub 1.51 to support Python 2.7 which is no
     longer supported for that version.
 
     If we ever drop Python 2.7 support, this code is no longer needed and
@@ -323,142 +343,3 @@ def _get_git_matching_refs(repo, ref):
         repo.url + "/git/matching-refs/" + ref,
         None,
     )
-
-
-# class CKANGitClient(object):
-#
-#     def __init__(self, token, pkg_dict):
-#         g = Github(token)
-#         self.auth_user = g.get_user()
-#         self.pkg_dict = pkg_dict
-#
-#         repo_name = pkg_dict['name']
-#         # TODO: Review this key
-#         repo_notes = pkg_dict['notes']
-#
-#         self.repo = self.get_or_create_repo(repo_name, repo_notes)
-#
-#     def get_or_create_repo(self, name, notes):
-#         try:
-#             repo = self.auth_user.get_repo(name)
-#
-#         except UnknownObjectException:
-#             repo = self.auth_user.create_repo(name, notes)
-#
-#         return repo
-#
-#     def create_datapackage(self):
-#         body = converter.dataset_to_datapackage(self.pkg_dict)
-#         self.repo.create_file(
-#             'datapackage.json',
-#             'Create datapackage.json',
-#             json.dumps(body, indent=2)
-#             )
-#
-#     def create_gitattributes(self):
-#         self.repo.create_file(
-#         '.gitattributes',
-#         'Create .gitattributes',
-#         'data/* filter=lfs diff=lfs merge=lfs -text\n'
-#         )
-#
-#     def create_lfsconfig(self, git_lfs_server_url):
-#         repoUrl = '{}/{}/{}'.format(git_lfs_server_url,self.auth_user.html_url.split('/')[-1],self.pkg_dict['name'])
-#         self.repo.create_file(
-#             '.lfsconfig',
-#             'Create .lfsconfig',
-#             '[remote "origin"]\n\tlfsurl = ' + repoUrl
-#             )
-#
-#     def update_datapackage(self):
-#         contents = self.repo.get_contents("datapackage.json")
-#         body = converter.dataset_to_datapackage(self.pkg_dict)
-#         self.repo.update_file(
-#             contents.path,
-#             "Update datapackage.json",
-#             json.dumps(body, indent=2),
-#             contents.sha
-#             )
-#
-#     def create_or_update_lfspointerfile(self):
-#         try:
-#             # TODO: Refactor this using LFSPointer objects
-#             lfs_pointers = [obj.name for obj in self.repo.get_contents("data")]
-#             lfs_pointers = {obj:self.get_sha256(obj) for obj in lfs_pointers}
-#
-#         except UnknownObjectException as e:
-#             lfs_pointers = dict()
-#
-#         for obj in self.pkg_dict['resources']:
-#             if obj['url_type'] == 'upload':
-#                 if obj['name'] not in lfs_pointers.keys():
-#                     self.create_lfspointerfile(obj)
-#
-#                 elif obj['sha256'] != lfs_pointers[obj['name']]:
-#                     self.update_lfspointerfile(obj)
-#
-#     def get_sha256(self, lfspointerfile):
-#         file_path = "data/{}".format(lfspointerfile)
-#         file_content = self.repo.get_contents(file_path).decoded_content
-#         return str(file_content).split('\n')[1].split(':')[-1]
-#
-#     def create_lfspointerfile(self, obj):
-#         sha256 = obj['sha256']
-#         size = obj['size']
-#         lfs_pointer_body = 'version https://git-lfs.github.com/spec/v1\noid sha256:{}\nsize {}\n'.format(sha256, size)
-#
-#         self.repo.create_file(
-#         "data/{}".format(obj['name']),
-#         "Create LfsPointerFile",
-#         lfs_pointer_body,
-#         )
-#
-#     def update_lfspointerfile(self, obj):
-#         contents = self.repo.get_contents("data/{}".format(obj['name']))
-#         sha256 = obj['sha256']
-#         size = obj['size']
-#         lfs_pointer_body = 'version https://git-lfs.github.com/spec/v1\noid sha256:{}\nsize {}\n'.format(sha256, size)
-#
-#         self.repo.update_file(
-#             contents.path,
-#             "Update LfsPointerFile",
-#             lfs_pointer_body,
-#             contents.sha
-#             )
-#
-#     def delete_lfspointerfile(self, resource_name):
-#         try:
-#             contents = self.repo.get_contents("data/{}".format(resource_name))
-#             self.repo.delete_file(
-#                 contents.path,
-#                 "remove lfspointerfile",
-#                 contents.sha)
-#             log.info("{} lfspointer is deleted.".format(resource_name))
-#             return True
-#
-#         except Exception as e:
-#             return False
-#
-#     def check_after_delete(self, resources):
-#         try:
-#             contents = self.repo.get_contents("data/")
-#
-#         except UnknownObjectException as e:
-#             contents = []
-#
-#         if len(resources) > len(contents):
-#             contents_name = [obj.name for obj in contents]
-#             for obj in resources:
-#                 if obj['name'] not in contents_name:
-#                     self.create_lfspointerfile(obj)
-#             return True
-#         return False
-#
-#     def delete_repo(self):
-#         try:
-#             self.repo.delete()
-#             log.info("{} repository deleted.".format(self.repo.name))
-#             return True
-#
-#         except Exception as e:
-#             return False

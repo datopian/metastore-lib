@@ -18,6 +18,7 @@ from fs import open_fs
 from fs.errors import DirectoryExists, ResourceNotFound
 
 from ..types import Author, PackageRevisionInfo, TagInfo
+from ..util import is_hex_str
 from . import StorageBackend, exc
 
 
@@ -60,7 +61,7 @@ class FilesystemStorage(StorageBackend):
             # Get the latest revision
             revision = self.revision_list(package_id)[0]
             revision_ref = revision.revision
-        elif not _is_revision_like(revision_ref):
+        elif not is_hex_str(revision_ref, chars=32):
             tag = self.tag_fetch(package_id, revision_ref)
             revision_ref = tag.revision_ref
             revision = tag.revision
@@ -290,21 +291,6 @@ def _make_revision_id():
     """Generate a random unique revision ID
     """
     return uuid.uuid4().hex
-
-
-def _is_revision_like(ref):
-    # type: (str) -> bool
-    """Check if a string is a revision-ref like string
-
-    This will return True if the ref is a 32-character hex number
-    """
-    if len(ref) != 32:
-        return False
-    try:
-        int(ref, 16)
-    except ValueError:
-        return False
-    return True
 
 
 def _parse_rev_log(package_id, rev_data):
