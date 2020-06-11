@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional
 from metastore.types import Author, DataPackageType, PackageRevisionInfo, TagInfo
 from metastore.util import get_callable
 
-BACKEND_CLASSES = {'github': 'metastore.backend.gh:GitHubStorage',
+BACKEND_CLASSES = {'github': 'metastore.backend.github:GitHubStorage',
                    'filesystem': 'metastore.backend.filesystem:FilesystemStorage'}
 
 

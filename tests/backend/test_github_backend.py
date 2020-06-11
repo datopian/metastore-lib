@@ -8,7 +8,7 @@ import os
 import pytest
 from github import GithubException
 
-from metastore.backend.gh import GitHubStorage
+from metastore.backend.github import GitHubStorage
 
 from . import CommonBackendTestSuite, create_test_datapackage
 

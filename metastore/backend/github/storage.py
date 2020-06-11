@@ -8,15 +8,12 @@ not support other Git hosting services.
 import json
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from github import (AuthenticatedUser, Commit, GitCommit, Github, GithubException, GitRef, GitTag, InputGitTreeElement,
-                    Organization, PaginatedList, Repository, UnknownObjectException)
-from github.GithubObject import NotSet
-from github.InputGitAuthor import InputGitAuthor
+from metastore.backend import StorageBackend, exc
+from metastore.backend import git_lfs_helpers as lfs_helpers
+from metastore.types import Author, PackageRevisionInfo, TagInfo
+from metastore.util import is_hex_str
 
-from ..types import Author, PackageRevisionInfo, TagInfo
-from ..util import is_hex_str
-from . import StorageBackend, exc
-from . import git_lfs_helpers as lfs_helpers
+from . import gh_rest_api as gh
 
 
 class GitHubStorage(StorageBackend):
@@ -36,7 +33,7 @@ class GitHubStorage(StorageBackend):
                  default_branch=DEFAULT_BRANCH,
                  default_commit_message=DEFAULT_COMMIT_MESSAGE):
         # type: (Dict[str, Any], Optional[str], Optional[str], Optional[Author], Optional[str], Optional[str]) -> None
-        self.gh = Github(**github_options)
+        self.gh = gh.Github(**github_options)
         self._lfs_server_url = lfs_server_url
         self._default_owner = default_owner
         self._default_author = default_author
@@ -51,7 +48,7 @@ class GitHubStorage(StorageBackend):
 
         try:
             repo = self._get_owner(owner).create_repo(repo_name)
-        except GithubException as e:
+        except gh.GithubException as e:
             if e.status == 422 and e.data['errors'][0]['message'] == 'name already exists on this account':
                 raise exc.Conflict("Datapackage with the same ID already exists")
             raise
@@ -85,14 +82,14 @@ class GitHubStorage(StorageBackend):
             # Get the commit pointed by revision_ref
             commit = repo.get_git_commit(revision_ref)
 
-        except UnknownObjectException:
+        except gh.UnknownObjectException:
             raise exc.NotFound('Could not find package {}@{}', package_id, revision_ref)
 
         # Get the blob for datapackage.json in that commit
         try:
             blob = repo.get_contents('datapackage.json', revision_ref)
             datapackage = json.loads(blob.decoded_content)
-        except UnknownObjectException:
+        except gh.UnknownObjectException:
             raise exc.NotFound("datapackage.json file not found for {}@{}", package_id, revision_ref)
         except ValueError:
             raise ValueError("Unable to parse datapackage.json file in {}@{}".format(package_id, revision_ref))
@@ -154,7 +151,7 @@ class GitHubStorage(StorageBackend):
         repo = self._get_repo(package_id)
         try:
             ref = repo.get_git_ref('tags/{}'.format(tag))
-        except UnknownObjectException:
+        except gh.UnknownObjectException:
             raise exc.NotFound('Could not find tag {} for package {}', tag, package_id)
         return self._tag_ref_to_taginfo(package_id, repo, ref)
 
@@ -186,7 +183,7 @@ class GitHubStorage(StorageBackend):
         try:
             ref = repo.get_git_ref('tags/{}'.format(tag))
             ref.delete()
-        except UnknownObjectException:
+        except gh.UnknownObjectException:
             raise exc.NotFound('Could not find tag {} for package {}', tag, package_id)
 
     def _parse_id(self, package_id):
@@ -202,7 +199,7 @@ class GitHubStorage(StorageBackend):
             raise ValueError('Invalid package ID for the GitHub backend: {}'.format(package_id))
 
     def _get_owner(self, owner):
-        # type: (str) -> Union[AuthenticatedUser, Organization]
+        # type: (str) -> Union[gh.AuthenticatedUser, gh.Organization]
         if self._user is None:
             self._user = self.gh.get_user()
         if owner == self._user.login:
@@ -211,18 +208,18 @@ class GitHubStorage(StorageBackend):
             return self.gh.get_organization(owner)
 
     def _get_repo(self, package_id):
-        # type: (str) -> Repository
+        # type: (str) -> gh.Repository
         """Get repository object for package_id, validating that it really
         exists
         """
         owner, repo_name = self._parse_id(package_id)
         try:
             return self._get_owner(owner).get_repo(repo_name)
-        except UnknownObjectException:
+        except gh.UnknownObjectException:
             raise exc.NotFound('Could not find package {}', package_id)
 
     def _create_commit(self, repo, files, parent_commit, author, message):
-        # type: (Repository, List[InputGitTreeElement], Commit, Optional[Author], str) -> GitCommit
+        # type: (gh.Repository, List[gh.InputGitTreeElement], gh.Commit, Optional[Author], str) -> gh.GitCommit
         """Create a git Commit
         """
         # Create tree
@@ -237,14 +234,14 @@ class GitHubStorage(StorageBackend):
         return commit
 
     def _create_tag(self, repo, name, description, revision_ref, author):
-        # type: (Repository.Repository, str, str, str, Optional[Author]) -> GitTag.GitTag
+        # type: (gh.Repository, str, str, str, Optional[Author]) -> gh.GitTag.GitTag
         """Low level operations for creating a git tag
         """
         author = self._verify_author(author)
         try:
             git_tag = repo.create_git_tag(name, description, revision_ref, 'commit', tagger=author)
             repo.create_git_ref('refs/tags/{}'.format(name), git_tag.sha)
-        except GithubException as e:
+        except gh.GithubException as e:
             if e.status == 422:
                 if e.data['message'] == 'Reference already exists':
                     raise exc.Conflict('Tag {} already exists'.format(name))
@@ -255,18 +252,18 @@ class GitHubStorage(StorageBackend):
         return git_tag
 
     def _verify_author(self, author):
-        # type: (Optional[Author]) -> Union[InputGitAuthor, NotSet]
+        # type: (Optional[Author]) -> Union[gh.InputGitAuthor, gh.NotSet]
         """Check we have an author and return something Git can use to set commit / tag author
         """
         if author and (author.name or author.email):
-            return InputGitAuthor(author.name, author.email)
+            return gh.InputGitAuthor(author.name, author.email)
         elif self._default_author:
-            return InputGitAuthor(self._default_author.name, self._default_author.email)
+            return gh.InputGitAuthor(self._default_author.name, self._default_author.email)
         else:
-            return NotSet
+            return gh.NotSet
 
     def _tag_ref_to_taginfo(self, package_id, repo, ref):
-        # type: (str, Repository.Repository, GitRef.GitRef) -> TagInfo
+        # type: (str, gh.Repository, gh.GitRef) -> TagInfo
         """Convert a GitRef for a tag into a TagInfo object
         """
         tag_obj = repo.get_git_tag(ref.object.sha)
@@ -276,7 +273,7 @@ class GitHubStorage(StorageBackend):
                        tag_obj.message)
 
     def _create_lfs_files(self, datapackage):
-        # type: (Dict[str, Any]) -> List[InputGitTreeElement]
+        # type: (Dict[str, Any]) -> List[gh.InputGitTreeElement]
         """Create LFS pointer files and config files, if we need to
 
         :raise ValueError: If resources with conflicting file names are found
@@ -306,13 +303,13 @@ class GitHubStorage(StorageBackend):
 
 
 def _create_file(path, content):
-    # type: (str, bytes) -> InputGitTreeElement
-    element = InputGitTreeElement(path, '100644', 'blob', content=content)
+    # type: (str, bytes) -> gh.InputGitTreeElement
+    element = gh.InputGitTreeElement(path, '100644', 'blob', content=content)
     return element
 
 
 def _commit_to_revinfo(package_id, commit):
-    # type: (Commit) -> PackageRevisionInfo
+    # type: (str, gh.Commit) -> PackageRevisionInfo
     """Convert a GitHub Commit object to a PackageRevisionInfo object
     """
     return PackageRevisionInfo(package_id,
@@ -334,8 +331,8 @@ def _get_git_matching_refs(repo, ref):
         return repo.get_git_matching_refs(ref)
 
     assert isinstance(ref, str), ref
-    return PaginatedList.PaginatedList(
-        GitRef.GitRef,
+    return gh.PaginatedList.PaginatedList(
+        gh.GitRef,
         repo._requester,
         repo.url + "/git/matching-refs/" + ref,
         None,

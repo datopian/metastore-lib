@@ -2,7 +2,7 @@
 """
 from metastore.backend import create_metastore
 from metastore.backend.filesystem import FilesystemStorage
-from metastore.backend.gh import GitHubStorage
+from metastore.backend.github import GitHubStorage
 
 
 def test_factory_instantiates_filesystem_backend():
