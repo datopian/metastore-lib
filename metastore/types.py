@@ -20,8 +20,7 @@ class Author(object):
         self.email = email
 
     def __eq__(self, other):
-        if isinstance(self, other.__class__):
-            return self.name == other.name and self.email == other.email
+        return _compare_attributes(self, other, ('name', 'email'))
 
     def __repr__(self):
         return '<Author {}>'.format(self.email)
@@ -46,9 +45,7 @@ class PackageRevisionInfo(object):
         self.package = package
 
     def __eq__(self, other):
-        if isinstance(self, other.__class__):
-            return self.package_id == other.package_id and self.revision == other.revision
-        return False
+        return _compare_attributes(self, other, ('package_id', 'revision'))
 
 
 class TagInfo(object):
@@ -72,6 +69,16 @@ class TagInfo(object):
         self.description = description
 
     def __eq__(self, other):
-        if isinstance(self, other.__class__):
-            return self.package_id == other.package_id and self.name == other.name
+        return _compare_attributes(self, other, ('package_id', 'name'))
+
+
+def _compare_attributes(obj, other, key_attributes):
+    """Object comparison helper
+    """
+    if not isinstance(obj, other.__class__):
+        return NotImplemented
+
+    try:
+        return all(getattr(obj, a) == getattr(obj, a) for a in key_attributes)
+    except AttributeError:
         return False
