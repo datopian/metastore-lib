@@ -46,7 +46,7 @@ class GitHubStorage(StorageBackend):
 
     def create(self, package_id, metadata, author=None, message=None):
         owner, repo_name = self._parse_id(package_id)
-        datapackage = self._create_file('datapackage.json', json.dumps(metadata, indent=2))
+        datapackage = _create_file('datapackage.json', json.dumps(metadata, indent=2))
         files = [datapackage] + self._create_lfs_files(metadata)
 
         try:
@@ -64,9 +64,6 @@ class GitHubStorage(StorageBackend):
             repo.create_file('README.md', 'Initialize data repository', self.DEFAULT_README)
             head = repo.get_branch(self._default_branch)
             commit = self._create_commit(repo, files, head.commit, author, message)
-
-            # TODO: handle resources / Git LFS config and pointer files
-
         except Exception:
             self.delete(package_id)
             raise
@@ -104,7 +101,7 @@ class GitHubStorage(StorageBackend):
         return PackageRevisionInfo(package_id, commit.sha, commit.author.date, author, commit.message, datapackage)
 
     def update(self, package_id, metadata, author=None, partial=False, base_revision_ref=None, message=None):
-        datapackage = self._create_file('datapackage.json', json.dumps(metadata, indent=2))
+        datapackage = _create_file('datapackage.json', json.dumps(metadata, indent=2))
         files = [datapackage] + self._create_lfs_files(metadata)
         owner, repo_name = self._parse_id(package_id)
         parent = self.fetch(package_id, base_revision_ref)
@@ -301,17 +298,17 @@ class GitHubStorage(StorageBackend):
             if path[0] == '/' or '../' in path:
                 raise ValueError('Resource path is absolute or contains parent dir references: {}'.format(path))
 
-        files = [self._create_file(r['path'], lfs_helpers.create_lfs_pointer_file(r)) for r in file_resources]
-        files.append(self._create_file('.gitattributes', lfs_helpers.create_git_attributes_file(paths)))
-        files.append(self._create_file('.lfsconfig', lfs_helpers.create_lfs_config_file(self._lfs_server_url)))
+        files = [_create_file(r['path'], lfs_helpers.create_lfs_pointer_file(r)) for r in file_resources]
+        files.append(_create_file('.gitattributes', lfs_helpers.create_git_attributes_file(paths)))
+        files.append(_create_file('.lfsconfig', lfs_helpers.create_lfs_config_file(self._lfs_server_url)))
 
         return files
 
-    @staticmethod
-    def _create_file(path, content):
-        # type: (str, bytes) -> InputGitTreeElement
-        element = InputGitTreeElement(path, '100644', 'blob', content=content)
-        return element
+
+def _create_file(path, content):
+    # type: (str, bytes) -> InputGitTreeElement
+    element = InputGitTreeElement(path, '100644', 'blob', content=content)
+    return element
 
 
 def _commit_to_revinfo(package_id, commit):
