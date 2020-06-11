@@ -2,14 +2,13 @@
 
 This is useful especially for testing and POC implementations
 """
-import base64
 import hashlib
 import json
 import re
 import uuid
 from datetime import datetime
 from operator import attrgetter
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 import pytz
 import six
@@ -122,7 +121,17 @@ class FilesystemStorage(StorageBackend):
         return self._log_tag(revision, name, author, description)
 
     def tag_list(self, package_id):
-        return self._get_tags(package_id)
+        tags = []
+        tag_dir = self._open_tag_dir(package_id)
+        if tag_dir is None:
+            return []
+
+        for tag_name in tag_dir.listdir('.'):
+            with tag_dir.open(tag_name, 'r') as f:
+                tag_line = json.load(f)
+            tags.append(_tag_file_to_taginfo(package_id, tag_name, tag_line))
+
+        return sorted(tags, key=attrgetter('created'))
 
     def tag_fetch(self, package_id, tag):
         if not self._validate_tag_name(tag):
@@ -170,8 +179,12 @@ class FilesystemStorage(StorageBackend):
         author = self._verify_author(author)
 
         with self._fs.open(db_file, 'ab') as f:
-            line = [revision, now, message, author.name, author.email]
-            f.write('{}\n'.format(json.dumps(line)).encode('utf8'))
+            rev_info = {"revision": revision,
+                        "created": now,
+                        "description": message,
+                        "author_name": author.name,
+                        "author_email": author.email}
+            f.write('{}\n'.format(json.dumps(rev_info)).encode('utf8'))
         return PackageRevisionInfo(package_id, revision, now, author, message)
 
     def _get_revisions(self, package_id):
@@ -194,7 +207,7 @@ class FilesystemStorage(StorageBackend):
         with self._fs.open(db_file, 'r') as f:
             for line in f:
                 rev_data = json.loads(line)
-                if rev_data[0] == revision:
+                if rev_data['revision'] == revision:
                     return _parse_rev_log(package_id, rev_data)
 
     def _validate_tag_name(self, name):
@@ -217,8 +230,12 @@ class FilesystemStorage(StorageBackend):
                 raise exc.Conflict('Tag already exists: {}'.format(tag_name))
 
             with tags_dir.open(tag_name, 'wb') as f:
-                line = [now.isoformat(), revision.revision, tag_description, author.name, author.email]
-                f.write(json.dumps(line).encode('utf8'))
+                tag_info = {"created": now.isoformat(),
+                            "revision": revision.revision,
+                            "description": tag_description,
+                            "author_name": author.name,
+                            "author_email": author.email}
+                f.write(json.dumps(tag_info).encode('utf8'))
         return TagInfo(revision.package_id, tag_name, now, revision.revision, author, revision,
                        description=tag_description)
 
@@ -238,22 +255,6 @@ class FilesystemStorage(StorageBackend):
             return None
 
         return _tag_file_to_taginfo(package_id, tag_name, line)
-
-    def _get_tags(self, package_id):
-        # type: (str) -> List[TagInfo]
-        """Get list of all tags from the tag DB file
-        """
-        tags = []
-        tag_dir = self._open_tag_dir(package_id)
-        if tag_dir is None:
-            return []
-
-        for tag_name in tag_dir.listdir('.'):
-            with tag_dir.open(tag_name, 'r') as f:
-                tag_line = json.load(f)
-            tags.append(_tag_file_to_taginfo(package_id, tag_name, tag_line))
-
-        return sorted(tags, key=attrgetter('created'))
 
     def _open_tag_dir(self, package_id):
         """Open a tag directory and return it
@@ -294,42 +295,33 @@ def _make_revision_id():
 
 
 def _parse_rev_log(package_id, rev_data):
-    # type: (str, List[str]) -> PackageRevisionInfo
+    # type: (str, Dict[str, Any]) -> PackageRevisionInfo
     """Parse a line from the revision log and return a RevisionInfo object
     """
-    if rev_data[3] or rev_data[4]:
-        author = Author(name=rev_data[3] or None,
-                        email=rev_data[4] or None)
-    else:
-        author = None
-
+    author = _get_author(rev_data)
     return PackageRevisionInfo(package_id=package_id,
-                               revision=rev_data[0],
-                               created=isoparse(rev_data[1]),
+                               revision=rev_data['revision'],
+                               created=isoparse(rev_data['created']),
                                author=author,
-                               description=rev_data[2])
+                               description=rev_data['description'])
 
 
 def _tag_file_to_taginfo(package_id, tag_name, tag_data):
-    # type: (str, str, str) -> TagInfo
-    if tag_data[3] or tag_data[4]:
-        author = Author(name=tag_data[3] or None,
-                        email=tag_data[4] or None)
-    else:
-        author = None
-
+    # type: (str, str, Dict[str, Any]) -> TagInfo
+    author = _get_author(tag_data)
     return TagInfo(package_id=package_id,
                    name=tag_name,
-                   created=isoparse(tag_data[0]),
-                   revision_ref=tag_data[1],
-                   description=tag_data[2],
+                   created=isoparse(tag_data['created']),
+                   revision_ref=tag_data['revision'],
+                   description=tag_data['description'],
                    author=author)
 
 
-def _decode_text_blob(encoded_desc):
-    # type: (str) -> Optional[str]
-    """Decode a base64-encoded text blob saved in DB file for revision / tag
-    """
-    if encoded_desc:
-        return base64.b64decode(encoded_desc).decode('utf8')
-    return None
+def _get_author(record):
+    # type: (Dict[str, Any]) -> Optional[Author]
+    if 'author_name' in record or 'author_email' in record:
+        author = Author(name=record.get('author_name'),
+                        email=record.get('author_email'))
+    else:
+        author = None
+    return author
