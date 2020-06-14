@@ -14,6 +14,7 @@ from metastore.types import Author, PackageRevisionInfo, TagInfo
 from metastore.util import is_hex_str
 
 from . import gh_rest_api as gh
+from .gh_graphql_api import get_client as get_gql_client
 
 
 class GitHubStorage(StorageBackend):
@@ -34,6 +35,7 @@ class GitHubStorage(StorageBackend):
                  default_commit_message=DEFAULT_COMMIT_MESSAGE):
         # type: (Dict[str, Any], Optional[str], Optional[str], Optional[Author], Optional[str], Optional[str]) -> None
         self.gh = gh.Github(**github_options)
+        self._gql_client = get_gql_client(token='PUT an auth token here')  # TODO: Need to somehow plug GH authentication here
         self._lfs_server_url = lfs_server_url
         self._default_owner = default_owner
         self._default_author = default_author
@@ -140,6 +142,38 @@ class GitHubStorage(StorageBackend):
         return TagInfo(package_id, name, git_tag.tagger.date, revision_ref, t_author, revision, description)
 
     def tag_list(self, package_id):
+        owner_name, repo_name = self._parse_id(package_id)
+        query = '''
+        query($repoName:String!, $repoOwner:String!) {
+          repository(name: $repoName, owner: $repoOwner) {
+            refs(refPrefix: "refs/tags/", last: 100) {
+              nodes {
+                name
+                target {
+                  __typename
+                  ... on Tag {
+                    oid
+                    name
+                    tag_message: message
+                    tagger {
+                      email
+                      name
+                    }
+                    target {
+                      oid
+                    }
+                  }
+                  ... on Commit {
+                    commit_message: message
+                  }
+                }
+              }
+            }
+          }
+        }
+        '''
+        query_res = gql_client.execute(query, {"repoOwner": owner_name, "repoName": repo_name})
+        print(query_res)
         repo = self._get_repo(package_id)
         tag_refs = _get_git_matching_refs(repo, 'tags/')
         tags = []

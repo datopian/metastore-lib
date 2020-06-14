@@ -25,5 +25,7 @@ setup(
         'fs',
         'pygithub',
     ],
-    package_data={}
+    package_data={
+        'metastore.backend.github': ['schema.public.graphql']
+    }
 )

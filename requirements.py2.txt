@@ -12,15 +12,19 @@ deprecated==1.2.10        # via pygithub
 enum34==1.1.10            # via fs
 fs==2.4.11                # via -r requirements.in
 future==0.18.2            # via backports.os
+gql==2.0.0                # via -r requirements.in
+graphql-core==2.3.2       # via gql
 idna==2.9                 # via requests
+promise==2.3              # via gql, graphql-core
 pygithub==1.45            # via -r requirements.in
 pyjwt==1.7.1              # via pygithub
 python-dateutil==2.8.1    # via -r requirements.in
 pytz==2020.1              # via -r requirements.in, fs
-requests==2.23.0          # via pygithub
-six==1.15.0               # via -r requirements.in, fs, pygithub, python-dateutil
+requests==2.23.0          # via gql, pygithub
+rx==1.6.1                 # via graphql-core
+six==1.15.0               # via -r requirements.in, fs, gql, graphql-core, promise, pygithub, python-dateutil
 typing-extensions==3.7.4.2  # via -r requirements.in
-typing==3.7.4.1           # via -r requirements.in, fs, typing-extensions
+typing==3.7.4.1           # via -r requirements.in, fs, promise, typing-extensions
 urllib3==1.25.9           # via requests
 wrapt==1.12.1             # via deprecated
 
