@@ -117,7 +117,7 @@ def create_metastore(backend_type, options):
         try:
             backend_type = BACKEND_CLASSES[backend_type]
         except KeyError:
-            raise ValueError("Unknown backend type: {}".format(type))
+            raise ValueError("Unknown backend type: {}".format(backend_type))
 
     backend = get_callable(backend_type)
     return backend(**options)  # type: ignore
