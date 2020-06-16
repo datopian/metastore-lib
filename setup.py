@@ -1,5 +1,5 @@
 from os import path
-from setuptools import setup
+from setuptools import find_packages, setup
 
 here = path.abspath(path.dirname(__file__))
 
@@ -9,7 +9,7 @@ with open(path.join(here, 'README.md')) as f:
 
 setup(
     name='metastore-lib',
-    packages=['metastore'],
+    packages=find_packages(exclude='tests'),
     version=open('VERSION').read(),
     description='A library for abstracting versioned metadata storage for data packages',
     long_description=long_description,
