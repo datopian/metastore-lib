@@ -4,6 +4,8 @@ metastore-lib: metadata storage library for datapackages
 [![Build Status](https://travis-ci.org/datopian/metastore-lib.svg?branch=master)](https://travis-ci.org/datopian/metastore-lib)
 [![Maintainability](https://api.codeclimate.com/v1/badges/f53acd8aa367512130c3/maintainability)](https://codeclimate.com/github/datopian/metastore-lib/maintainability)
 [![Test Coverage](https://api.codeclimate.com/v1/badges/f53acd8aa367512130c3/test_coverage)](https://codeclimate.com/github/datopian/metastore-lib/test_coverage)
+[![PyPI version](https://badge.fury.io/py/metastore-lib.svg)](https://badge.fury.io/py/metastore-lib)
+[![Documentation Status](https://readthedocs.org/projects/metastore-lib/badge/?version=latest)](https://metastore-lib.readthedocs.io/en/latest/?badge=latest)
 
 A Python library for abstracting metadata storage for [datapackage.json][1]
 packages. 
