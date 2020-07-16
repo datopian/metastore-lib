@@ -10,10 +10,9 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
-# import os
+import os
 # import sys
 # sys.path.insert(0, os.path.abspath('.'))
-
 
 # -- Project information -----------------------------------------------------
 
@@ -22,8 +21,8 @@ copyright = '2020, Viderum, Inc. / Datopian'
 author = 'Shahar Evron'
 
 # The full version, including alpha/beta/rc tags
-release = '0.0.1'
-
+with open(os.path.join(os.path.dirname(__file__), '..', 'VERSION')) as f:
+    release = f.read().strip()
 
 # -- General configuration ---------------------------------------------------
 
@@ -31,6 +30,7 @@ release = '0.0.1'
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
+    'recommonmark',
     'sphinx.ext.autodoc',
     'sphinx_autodoc_typehints'
 ]
