@@ -5,6 +5,7 @@
 /.coverage
 /.make-cache
 /.python-version
+.DS_Store
 .pytest_cache
 .mypy_cache
 *.egg-info
