@@ -10,6 +10,19 @@ metastore-lib: metadata storage library for datapackages
 A Python library for abstracting metadata storage for [datapackage.json][1]
 packages. 
 
+Full Documentation
+------------------
+While this README provides some basic information on how to get started, the 
+most up-to-date and comprehesive documentation for `mestastore-lib` is 
+[available at metastore-lib.readthedocs.io](https://metastore-lib.readthedocs.io/en/latest).
+
+Installation
+------------
+The easiest way to install the latest stable version of metastore-lib into
+your Python environment is via `pip`:
+
+    pip install metastore-lib
+
 Quick Start
 -----------
 

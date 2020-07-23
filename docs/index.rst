@@ -13,7 +13,7 @@ datapackage.json_ packages.
    :maxdepth: 2
    :caption: Contents:
 
-   backends
+   backends/index
    api
 
 Quick Start
