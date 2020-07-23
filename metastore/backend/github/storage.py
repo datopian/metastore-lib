@@ -30,8 +30,7 @@ class GitHubStorage(StorageBackend):
     DEFAULT_TAG_MESSAGE = 'Tagging revision'
 
     def __init__(self, github_options, lfs_server_url=None, default_owner=None, default_author=None,
-                 default_branch=DEFAULT_BRANCH,
-                 default_commit_message=DEFAULT_COMMIT_MESSAGE):
+                 default_branch=DEFAULT_BRANCH, default_commit_message=DEFAULT_COMMIT_MESSAGE):
         # type: (Dict[str, Any], Optional[str], Optional[str], Optional[Author], Optional[str], Optional[str]) -> None
         self.gh = gh.Github(**github_options)
         self._lfs_server_url = lfs_server_url
@@ -100,17 +99,16 @@ class GitHubStorage(StorageBackend):
     def update(self, package_id, metadata, author=None, partial=False, base_revision_ref=None, message=None):
         datapackage = _create_file('datapackage.json', json.dumps(metadata, indent=2))
         files = [datapackage] + self._create_lfs_files(metadata)
-        owner, repo_name = self._parse_id(package_id)
-        parent = self.fetch(package_id, base_revision_ref)
 
         if message is None:
             message = self._default_commit_message
 
         if partial:
+            parent = self.fetch(package_id, base_revision_ref)
             parent.package.update(metadata)
             metadata = parent.package
 
-        repo = self._get_owner(owner).get_repo(repo_name)
+        repo = self._get_repo(package_id)
         head = repo.get_branch(self._default_branch)
         commit = self._create_commit(repo, files, head.commit, author, message)
         c_author = Author(commit.author.name, commit.author.email)
