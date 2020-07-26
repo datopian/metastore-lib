@@ -82,14 +82,14 @@ class GitHubStorage(StorageBackend):
             commit = repo.get_git_commit(revision_ref)
 
         except gh.UnknownObjectException:
-            raise exc.NotFound('Could not find package {}@{}', package_id, revision_ref)
+            raise exc.NotFound('Could not find package {}@{}'.format(package_id, revision_ref))
 
         # Get the blob for datapackage.json in that commit
         try:
             blob = repo.get_contents('datapackage.json', revision_ref)
             datapackage = json.loads(blob.decoded_content)
         except gh.UnknownObjectException:
-            raise exc.NotFound("datapackage.json file not found for {}@{}", package_id, revision_ref)
+            raise exc.NotFound("datapackage.json file not found for {}@{}".format(package_id, revision_ref))
         except ValueError:
             raise ValueError("Unable to parse datapackage.json file in {}@{}".format(package_id, revision_ref))
 
@@ -150,7 +150,7 @@ class GitHubStorage(StorageBackend):
         try:
             ref = repo.get_git_ref('tags/{}'.format(tag))
         except gh.UnknownObjectException:
-            raise exc.NotFound('Could not find tag {} for package {}', tag, package_id)
+            raise exc.NotFound('Could not find tag {} for package {}'.format(tag, package_id))
         return self._tag_ref_to_taginfo(package_id, repo, ref)
 
     def tag_update(self, package_id, tag, author=None, new_name=None, new_description=None):
@@ -182,7 +182,7 @@ class GitHubStorage(StorageBackend):
             ref = repo.get_git_ref('tags/{}'.format(tag))
             ref.delete()
         except gh.UnknownObjectException:
-            raise exc.NotFound('Could not find tag {} for package {}', tag, package_id)
+            raise exc.NotFound('Could not find tag {} for package {}'.format(tag, package_id))
 
     def _parse_id(self, package_id):
         # type: (str) -> Tuple(str, str)
@@ -214,7 +214,7 @@ class GitHubStorage(StorageBackend):
         try:
             return self._get_owner(owner).get_repo(repo_name)
         except gh.UnknownObjectException:
-            raise exc.NotFound('Could not find package {}', package_id)
+            raise exc.NotFound('Could not find package {}'.format(package_id))
 
     def _create_commit(self, repo, files, parent_commit, author, message):
         # type: (gh.Repository, List[gh.InputGitTreeElement], gh.Commit, Optional[Author], str) -> gh.GitCommit
