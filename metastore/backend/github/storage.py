@@ -30,8 +30,7 @@ class GitHubStorage(StorageBackend):
     DEFAULT_TAG_MESSAGE = 'Tagging revision'
 
     def __init__(self, github_options, lfs_server_url=None, default_owner=None, default_author=None,
-                 default_branch=DEFAULT_BRANCH,
-                 default_commit_message=DEFAULT_COMMIT_MESSAGE):
+                 default_branch=DEFAULT_BRANCH, default_commit_message=DEFAULT_COMMIT_MESSAGE):
         # type: (Dict[str, Any], Optional[str], Optional[str], Optional[Author], Optional[str], Optional[str]) -> None
         self.gh = gh.Github(**github_options)
         self._lfs_server_url = lfs_server_url
@@ -58,39 +57,44 @@ class GitHubStorage(StorageBackend):
 
         try:
             # Create an initial README.md file so we can start using the low-level Git API
-            repo.create_file('README.md', 'Initialize data repository', self.DEFAULT_README)
+            repo.create_file('README.md', 'Initialize data repository', self.DEFAULT_README,
+                             branch=self._default_branch)
             head = repo.get_branch(self._default_branch)
             commit = self._create_commit(repo, files, head.commit, author, message)
-        except Exception:
-            self.delete(package_id)
-            raise
+        except Exception as e:
+            try:
+                self.delete(package_id)
+            except Exception:
+                pass
+            raise e
 
         c_author = Author(commit.author.name, commit.author.email)
         return PackageRevisionInfo(package_id, commit.sha, commit.author.date, c_author, message, metadata)
 
-    def fetch(self, package_id, revision_ref=None):
-        repo = self._get_repo(package_id)
+    def fetch(self, package_id, revision_ref=None, repo=None):
+        if repo is None:
+            repo = self._get_repo(package_id)
         try:
             if not revision_ref:
                 ref = repo.get_git_ref('heads/{}'.format(self._default_branch))
                 assert ref.object.type == 'commit'
                 revision_ref = ref.object.sha
             elif not is_hex_str(revision_ref):
-                tag = self.tag_fetch(package_id, revision_ref)
+                tag = self.tag_fetch(package_id, revision_ref, repo=repo)
                 revision_ref = tag.revision_ref
 
             # Get the commit pointed by revision_ref
             commit = repo.get_git_commit(revision_ref)
 
         except gh.UnknownObjectException:
-            raise exc.NotFound('Could not find package {}@{}', package_id, revision_ref)
+            raise exc.NotFound('Could not find package {}@{}'.format(package_id, revision_ref))
 
         # Get the blob for datapackage.json in that commit
         try:
             blob = repo.get_contents('datapackage.json', revision_ref)
             datapackage = json.loads(blob.decoded_content)
         except gh.UnknownObjectException:
-            raise exc.NotFound("datapackage.json file not found for {}@{}", package_id, revision_ref)
+            raise exc.NotFound("datapackage.json file not found for {}@{}".format(package_id, revision_ref))
         except ValueError:
             raise ValueError("Unable to parse datapackage.json file in {}@{}".format(package_id, revision_ref))
 
@@ -98,20 +102,21 @@ class GitHubStorage(StorageBackend):
         return PackageRevisionInfo(package_id, commit.sha, commit.author.date, author, commit.message, datapackage)
 
     def update(self, package_id, metadata, author=None, partial=False, base_revision_ref=None, message=None):
-        datapackage = _create_file('datapackage.json', json.dumps(metadata, indent=2))
-        files = [datapackage] + self._create_lfs_files(metadata)
-        owner, repo_name = self._parse_id(package_id)
-        parent = self.fetch(package_id, base_revision_ref)
-
         if message is None:
             message = self._default_commit_message
 
+        repo = self._get_repo(package_id)
+        head = repo.get_branch(self._default_branch)
+
         if partial:
+            if base_revision_ref is None:
+                base_revision_ref = head.commit.sha
+            parent = self.fetch(package_id, base_revision_ref, repo=repo)
             parent.package.update(metadata)
             metadata = parent.package
 
-        repo = self._get_owner(owner).get_repo(repo_name)
-        head = repo.get_branch(self._default_branch)
+        datapackage = _create_file('datapackage.json', json.dumps(metadata, indent=2))
+        files = [datapackage] + self._create_lfs_files(metadata)
         commit = self._create_commit(repo, files, head.commit, author, message)
         c_author = Author(commit.author.name, commit.author.email)
         return PackageRevisionInfo(package_id, commit.sha, commit.author.date, c_author, message, metadata)
@@ -126,12 +131,12 @@ class GitHubStorage(StorageBackend):
         revisions = [_commit_to_revinfo(package_id, c) for c in commits]
         return revisions
 
-    def revision_fetch(self, package_id, revision_ref):
-        return self.fetch(package_id, revision_ref)
+    def revision_fetch(self, package_id, revision_ref, repo=None):
+        return self.fetch(package_id, revision_ref, repo=repo)
 
     def tag_create(self, package_id, revision_ref, name, author=None, description=None):
         repo = self._get_repo(package_id)
-        revision = self.revision_fetch(package_id, revision_ref)
+        revision = self.revision_fetch(package_id, revision_ref, repo=repo)
         if description is None:
             description = self.DEFAULT_TAG_MESSAGE
 
@@ -147,12 +152,13 @@ class GitHubStorage(StorageBackend):
             tags.append(self._tag_ref_to_taginfo(package_id, repo, ref))
         return tags
 
-    def tag_fetch(self, package_id, tag):
-        repo = self._get_repo(package_id)
+    def tag_fetch(self, package_id, tag, repo=None):
+        if repo is None:
+            repo = self._get_repo(package_id)
         try:
             ref = repo.get_git_ref('tags/{}'.format(tag))
         except gh.UnknownObjectException:
-            raise exc.NotFound('Could not find tag {} for package {}', tag, package_id)
+            raise exc.NotFound('Could not find tag {} for package {}'.format(tag, package_id))
         return self._tag_ref_to_taginfo(package_id, repo, ref)
 
     def tag_update(self, package_id, tag, author=None, new_name=None, new_description=None):
@@ -160,7 +166,7 @@ class GitHubStorage(StorageBackend):
             raise ValueError("Expecting at least one of new_name or new_description to be specified")
 
         repo = self._get_repo(package_id)
-        tag_info = self.tag_fetch(package_id, tag)
+        tag_info = self.tag_fetch(package_id, tag, repo=repo)
         name = new_name or tag_info.name
         description = new_description or tag_info.description
 
@@ -184,7 +190,7 @@ class GitHubStorage(StorageBackend):
             ref = repo.get_git_ref('tags/{}'.format(tag))
             ref.delete()
         except gh.UnknownObjectException:
-            raise exc.NotFound('Could not find tag {} for package {}', tag, package_id)
+            raise exc.NotFound('Could not find tag {} for package {}'.format(tag, package_id))
 
     def _parse_id(self, package_id):
         # type: (str) -> Tuple(str, str)
@@ -216,7 +222,7 @@ class GitHubStorage(StorageBackend):
         try:
             return self._get_owner(owner).get_repo(repo_name)
         except gh.UnknownObjectException:
-            raise exc.NotFound('Could not find package {}', package_id)
+            raise exc.NotFound('Could not find package {}'.format(package_id))
 
     def _create_commit(self, repo, files, parent_commit, author, message):
         # type: (gh.Repository, List[gh.InputGitTreeElement], gh.Commit, Optional[Author], str) -> gh.GitCommit
@@ -267,7 +273,7 @@ class GitHubStorage(StorageBackend):
         """Convert a GitRef for a tag into a TagInfo object
         """
         tag_obj = repo.get_git_tag(ref.object.sha)
-        revision = self.revision_fetch(package_id, tag_obj.object.sha)
+        revision = self.revision_fetch(package_id, tag_obj.object.sha, repo=repo)
         author = Author(tag_obj.tagger.name, tag_obj.tagger.email)
         return TagInfo(package_id, tag_obj.tag, tag_obj.tagger.date, tag_obj.object.sha, author, revision,
                        tag_obj.message)

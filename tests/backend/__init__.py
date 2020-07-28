@@ -302,7 +302,7 @@ class CommonBackendTestSuite(object):
         assert tags[0].description == 'My nice little tag'
         assert tags[0].name == 'v-1.0'
 
-    def test_tag_update_no_chance(self, backend):
+    def test_tag_update_no_change(self, backend):
         p1 = backend.create(self.dataset_id('mydataset'), create_test_datapackage('mydataset'))
         t1 = backend.tag_create(p1.package_id, p1.revision, 'version-1.0', description="My nice little tag")
         with pytest.raises(ValueError):
