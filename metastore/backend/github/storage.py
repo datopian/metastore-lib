@@ -57,25 +57,30 @@ class GitHubStorage(StorageBackend):
 
         try:
             # Create an initial README.md file so we can start using the low-level Git API
-            repo.create_file('README.md', 'Initialize data repository', self.DEFAULT_README)
+            repo.create_file('README.md', 'Initialize data repository', self.DEFAULT_README,
+                             branch=self._default_branch)
             head = repo.get_branch(self._default_branch)
             commit = self._create_commit(repo, files, head.commit, author, message)
-        except Exception:
-            self.delete(package_id)
-            raise
+        except Exception as e:
+            try:
+                self.delete(package_id)
+            except Exception:
+                pass
+            raise e
 
         c_author = Author(commit.author.name, commit.author.email)
         return PackageRevisionInfo(package_id, commit.sha, commit.author.date, c_author, message, metadata)
 
-    def fetch(self, package_id, revision_ref=None):
-        repo = self._get_repo(package_id)
+    def fetch(self, package_id, revision_ref=None, repo=None):
+        if repo is None:
+            repo = self._get_repo(package_id)
         try:
             if not revision_ref:
                 ref = repo.get_git_ref('heads/{}'.format(self._default_branch))
                 assert ref.object.type == 'commit'
                 revision_ref = ref.object.sha
             elif not is_hex_str(revision_ref):
-                tag = self.tag_fetch(package_id, revision_ref)
+                tag = self.tag_fetch(package_id, revision_ref, repo=repo)
                 revision_ref = tag.revision_ref
 
             # Get the commit pointed by revision_ref
@@ -100,15 +105,18 @@ class GitHubStorage(StorageBackend):
         if message is None:
             message = self._default_commit_message
 
+        repo = self._get_repo(package_id)
+        head = repo.get_branch(self._default_branch)
+
         if partial:
-            parent = self.fetch(package_id, base_revision_ref)
+            if base_revision_ref is None:
+                base_revision_ref = head.commit.sha
+            parent = self.fetch(package_id, base_revision_ref, repo=repo)
             parent.package.update(metadata)
             metadata = parent.package
 
         datapackage = _create_file('datapackage.json', json.dumps(metadata, indent=2))
         files = [datapackage] + self._create_lfs_files(metadata)
-        repo = self._get_repo(package_id)
-        head = repo.get_branch(self._default_branch)
         commit = self._create_commit(repo, files, head.commit, author, message)
         c_author = Author(commit.author.name, commit.author.email)
         return PackageRevisionInfo(package_id, commit.sha, commit.author.date, c_author, message, metadata)
@@ -123,12 +131,12 @@ class GitHubStorage(StorageBackend):
         revisions = [_commit_to_revinfo(package_id, c) for c in commits]
         return revisions
 
-    def revision_fetch(self, package_id, revision_ref):
-        return self.fetch(package_id, revision_ref)
+    def revision_fetch(self, package_id, revision_ref, repo=None):
+        return self.fetch(package_id, revision_ref, repo=repo)
 
     def tag_create(self, package_id, revision_ref, name, author=None, description=None):
         repo = self._get_repo(package_id)
-        revision = self.revision_fetch(package_id, revision_ref)
+        revision = self.revision_fetch(package_id, revision_ref, repo=repo)
         if description is None:
             description = self.DEFAULT_TAG_MESSAGE
 
@@ -144,8 +152,9 @@ class GitHubStorage(StorageBackend):
             tags.append(self._tag_ref_to_taginfo(package_id, repo, ref))
         return tags
 
-    def tag_fetch(self, package_id, tag):
-        repo = self._get_repo(package_id)
+    def tag_fetch(self, package_id, tag, repo=None):
+        if repo is None:
+            repo = self._get_repo(package_id)
         try:
             ref = repo.get_git_ref('tags/{}'.format(tag))
         except gh.UnknownObjectException:
@@ -157,7 +166,7 @@ class GitHubStorage(StorageBackend):
             raise ValueError("Expecting at least one of new_name or new_description to be specified")
 
         repo = self._get_repo(package_id)
-        tag_info = self.tag_fetch(package_id, tag)
+        tag_info = self.tag_fetch(package_id, tag, repo=repo)
         name = new_name or tag_info.name
         description = new_description or tag_info.description
 
@@ -264,7 +273,7 @@ class GitHubStorage(StorageBackend):
         """Convert a GitRef for a tag into a TagInfo object
         """
         tag_obj = repo.get_git_tag(ref.object.sha)
-        revision = self.revision_fetch(package_id, tag_obj.object.sha)
+        revision = self.revision_fetch(package_id, tag_obj.object.sha, repo=repo)
         author = Author(tag_obj.tagger.name, tag_obj.tagger.email)
         return TagInfo(package_id, tag_obj.tag, tag_obj.tagger.date, tag_obj.object.sha, author, revision,
                        tag_obj.message)
