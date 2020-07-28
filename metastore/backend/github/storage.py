@@ -97,9 +97,6 @@ class GitHubStorage(StorageBackend):
         return PackageRevisionInfo(package_id, commit.sha, commit.author.date, author, commit.message, datapackage)
 
     def update(self, package_id, metadata, author=None, partial=False, base_revision_ref=None, message=None):
-        datapackage = _create_file('datapackage.json', json.dumps(metadata, indent=2))
-        files = [datapackage] + self._create_lfs_files(metadata)
-
         if message is None:
             message = self._default_commit_message
 
@@ -108,6 +105,8 @@ class GitHubStorage(StorageBackend):
             parent.package.update(metadata)
             metadata = parent.package
 
+        datapackage = _create_file('datapackage.json', json.dumps(metadata, indent=2))
+        files = [datapackage] + self._create_lfs_files(metadata)
         repo = self._get_repo(package_id)
         head = repo.get_branch(self._default_branch)
         commit = self._create_commit(repo, files, head.commit, author, message)
