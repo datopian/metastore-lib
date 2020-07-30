@@ -10,8 +10,11 @@ and configuration if applicable.
 Currently, `metastore-lib`'s GitHub backend supports authentication using 
 a GitHub username and password (not recommended), or a Personal Access Token. 
 
-For more information on Personal Access Tokens and how to obtain them, 
-see [the relevant section in the GitHub Documentation](https://docs.github.com/en/github/authenticating-to-github/creating-a-personal-access-token)
+In the future, we plan to add support for GitHub App based authentication. See
+[this issue](https://github.com/datopian/metastore-lib/issues/18) for discussion
+and progress details. 
+
+### Username and Password Authentication
 
 The following example demonstrates instantiating a GitHub storage backend with
 username / password authentication:
@@ -25,6 +28,20 @@ config = {"github_options": {"login_or_token": "mr_username",
 backend = metastore.create_metastore('github', config) 
 ```
 
+### Personal Access Token Authentication
+
+To obtain a Personal Access Token, follow the instructions in 
+[the relevant section in the GitHub Documentation](https://docs.github.com/en/github/authenticating-to-github/creating-a-personal-access-token).
+The following permission scopes are required by `metastore-lib` and should be 
+granted:
+
+* `repo` and `repo:status` (other sub-scopes of repo are not required)
+* `repo_delete`
+
+If your GitHub organization requires SSO authentication, follow the steps
+[described here](https://docs.github.com/en/github/authenticating-to-github/authorizing-a-personal-access-token-for-use-with-saml-single-sign-on)
+after creating the token.
+
 The following example demonstrates doing the same but using a personal access
 token instead:
 
@@ -36,10 +53,6 @@ config = {"github_options": {"login_or_token": "averylongtokenthatwasgeneratedes
 backend = metastore.create_metastore('github', config) 
 ```
  
-In the future, we plan to add support for GitHub App based authentication. See
-[this issue](https://github.com/datopian/metastore-lib/issues/18) for discussion
-and progress details. 
-
 ## Other Configuration Options
 
 TBD 
