@@ -30,7 +30,7 @@ class GitHubStorage(StorageBackend):
     DEFAULT_TAG_MESSAGE = 'Tagging revision'
 
     def __init__(self, github_options, lfs_server_url=None, default_owner=None, default_author=None,
-                 default_branch=DEFAULT_BRANCH, default_commit_message=DEFAULT_COMMIT_MESSAGE):
+                 default_branch=DEFAULT_BRANCH, default_commit_message=DEFAULT_COMMIT_MESSAGE, private=False):
         # type: (Dict[str, Any], Optional[str], Optional[str], Optional[Author], Optional[str], Optional[str]) -> None
         self.gh = gh.Github(**github_options)
         self._lfs_server_url = lfs_server_url
@@ -39,6 +39,7 @@ class GitHubStorage(StorageBackend):
         self._default_branch = default_branch
         self._default_commit_message = default_commit_message
         self._user = None
+        self._private = private
 
     def create(self, package_id, metadata, author=None, message=None):
         owner, repo_name = self._parse_id(package_id)
@@ -46,7 +47,7 @@ class GitHubStorage(StorageBackend):
         files = [datapackage] + self._create_lfs_files(metadata)
 
         try:
-            repo = self._get_owner(owner).create_repo(repo_name)
+            repo = self._get_owner(owner).create_repo(repo_name, private=self._private)
         except gh.GithubException as e:
             if e.status == 422 and e.data['errors'][0]['message'] == 'name already exists on this account':
                 raise exc.Conflict("Datapackage with the same ID already exists")
