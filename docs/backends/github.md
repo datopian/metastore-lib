@@ -53,9 +53,27 @@ config = {"github_options": {"login_or_token": "averylongtokenthatwasgeneratedes
 backend = metastore.create_metastore('github', config) 
 ```
  
-## Other Configuration Options
+## Configuration Options
 
-TBD 
+The following configuration options can optionally be passed to the GitHub storage 
+backend constructor or factory function:
+
+* `github_options` - `dict` of keyword arguments to pass to the PyGitHub client.
+This should, at the very least, include some authentication credentials 
+* `lfs_server_url` - The base URL of the Git-LFS server in use. Providing this
+will make the GitHub backend create Git LFS configuration and pointer files for
+resources where applicable
+* `default_owner` - The GitHub organization or user name to use as the default
+owner for created repositories, if dataset names do not include a `owner/` prefix
+* `default_author` - A default `Author` object to use when committing changes
+if no author is specified otherwise
+* `default_branch` - The name of the default branch in the repository (typically, 
+this would be `master`)
+* `default_commit_message` - The default message to use when committing changes, 
+if not otherwise specified
+* `private` - Whether to use private repositories. False by default. Note that 
+private repositories must be enabled for the organization / user, and also 
+for the token used for authenticating with GitHub for this to work  
 
 ## Git LFS Support
 
