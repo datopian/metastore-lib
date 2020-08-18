@@ -172,7 +172,7 @@ class FilesystemStorage(StorageBackend):
 
     @classmethod
     def is_valid_revision_id(cls, revision_id):
-        is_hex_str(revision_id, chars=32)
+        return is_hex_str(revision_id, chars=32)
 
     def _log_revision(self, package_id, revision, author, message=None):
         # type: (str, str, Optional[Author], Optional[str]) -> PackageRevisionInfo
