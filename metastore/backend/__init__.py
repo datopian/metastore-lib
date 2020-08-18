@@ -106,6 +106,13 @@ class StorageBackend(object):
         """
         raise NotImplementedError("This method is not implemented for this backend")
 
+    @classmethod
+    def is_valid_revision_id(cls, revision_id):
+        # type: (str) -> bool
+        """Tell if a given string is a valid revision ID for this backend
+        """
+        raise NotImplementedError("This method is not implemented for this backend")
+
 
 def create_metastore(backend_type, options):
     # type: (str, Dict[str, Any]) -> StorageBackend

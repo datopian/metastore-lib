@@ -1,4 +1,4 @@
-# Makefile for giftless
+# Makefile for metastore-lib
 PACKAGE_NAME := metastore
 PACKAGE_DIRS := metastore
 TESTS_DIR := tests
