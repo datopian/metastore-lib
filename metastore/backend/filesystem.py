@@ -60,7 +60,7 @@ class FilesystemStorage(StorageBackend):
             # Get the latest revision
             revision = self.revision_list(package_id)[0]
             revision_ref = revision.revision
-        elif not is_hex_str(revision_ref, chars=32):
+        elif not self.is_valid_revision_id(revision_ref):
             tag = self.tag_fetch(package_id, revision_ref)
             revision_ref = tag.revision_ref
             revision = tag.revision
@@ -169,6 +169,10 @@ class FilesystemStorage(StorageBackend):
                 tags_dir.remove(tag)
             except ResourceNotFound:
                 raise exc.NotFound('Could not find tag {} for package {}', tag, package_id)
+
+    @classmethod
+    def is_valid_revision_id(cls, revision_id):
+        return is_hex_str(revision_id, chars=32)
 
     def _log_revision(self, package_id, revision, author, message=None):
         # type: (str, str, Optional[Author], Optional[str]) -> PackageRevisionInfo

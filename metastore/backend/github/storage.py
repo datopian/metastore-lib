@@ -80,7 +80,7 @@ class GitHubStorage(StorageBackend):
                 ref = repo.get_git_ref('heads/{}'.format(self._default_branch))
                 assert ref.object.type == 'commit'
                 revision_ref = ref.object.sha
-            elif not is_hex_str(revision_ref):
+            elif not self.is_valid_revision_id(revision_ref):
                 tag = self.tag_fetch(package_id, revision_ref, repo=repo)
                 revision_ref = tag.revision_ref
 
@@ -192,6 +192,10 @@ class GitHubStorage(StorageBackend):
             ref.delete()
         except gh.UnknownObjectException:
             raise exc.NotFound('Could not find tag {} for package {}'.format(tag, package_id))
+
+    @classmethod
+    def is_valid_revision_id(cls, revision_id):
+        return is_hex_str(revision_id)
 
     def _parse_id(self, package_id):
         # type: (str) -> Tuple(str, str)
