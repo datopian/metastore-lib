@@ -72,7 +72,7 @@ class FilesystemStorage(StorageBackend):
             with self._fs.open(package_path, 'r') as f:
                 revision.package = json.load(f)
         except (ResourceNotFound, ValueError):
-            raise exc.NotFound('Could not find package {}@{}', package_id, revision_ref)
+            raise exc.NotFound('Could not find package {}@{}'.format(package_id, revision_ref))
 
         return revision
 
@@ -96,22 +96,22 @@ class FilesystemStorage(StorageBackend):
         try:
             self._fs.removetree(path)
         except ResourceNotFound:
-            raise exc.NotFound('Could not find package {}', package_id)
+            raise exc.NotFound('Could not find package {}'.format(package_id))
 
     def revision_list(self, package_id):
         try:
             revisions = self._get_revisions(package_id)
         except ResourceNotFound:
-            raise exc.NotFound('Could not find package {}', package_id)
+            raise exc.NotFound('Could not find package {}'.format(package_id))
         return revisions
 
     def revision_fetch(self, package_id, revision_ref):
         try:
             revision = self._get_revision(package_id, revision_ref)
         except ResourceNotFound:
-            raise exc.NotFound('Could not find package {}', package_id)
+            raise exc.NotFound('Could not find package {}'.format(package_id))
         if revision is None:
-            raise exc.NotFound('Could not find package {}@{}', package_id, revision_ref)
+            raise exc.NotFound('Could not find package {}@{}'.format(package_id, revision_ref))
         return revision
 
     def tag_create(self, package_id, revision_ref, name, author=None, description=None):
@@ -139,7 +139,7 @@ class FilesystemStorage(StorageBackend):
 
         tag_info = self._get_tag(package_id, tag)
         if not tag_info:
-            raise exc.NotFound('Could not find tag {} for package {}', tag, package_id)
+            raise exc.NotFound('Could not find tag {} for package {}'.format(tag, package_id))
 
         tag_info.revision = self.revision_fetch(package_id, tag_info.revision_ref)
         return tag_info
@@ -168,7 +168,7 @@ class FilesystemStorage(StorageBackend):
             try:
                 tags_dir.remove(tag)
             except ResourceNotFound:
-                raise exc.NotFound('Could not find tag {} for package {}', tag, package_id)
+                raise exc.NotFound('Could not find tag {} for package {}'.format(tag, package_id))
 
     @classmethod
     def is_valid_revision_id(cls, revision_id):
@@ -266,7 +266,7 @@ class FilesystemStorage(StorageBackend):
         try:
             package_dir = self._fs.opendir(_get_package_path(package_id))
         except ResourceNotFound:
-            raise exc.NotFound('Could not find package {}', package_id)
+            raise exc.NotFound('Could not find package {}'.format(package_id))
 
         try:
             return package_dir.opendir('tags')
