@@ -1,5 +1,5 @@
-metastore-lib: metadata storage library for datapackages
-========================================================
+metastore-lib: metadata storage library for Frictionless Data (Data Packages)
+=============================================================================
 
 [![Build Status](https://travis-ci.org/datopian/metastore-lib.svg?branch=master)](https://travis-ci.org/datopian/metastore-lib)
 [![Maintainability](https://api.codeclimate.com/v1/badges/f53acd8aa367512130c3/maintainability)](https://codeclimate.com/github/datopian/metastore-lib/maintainability)
@@ -7,26 +7,34 @@ metastore-lib: metadata storage library for datapackages
 [![PyPI version](https://badge.fury.io/py/metastore-lib.svg)](https://badge.fury.io/py/metastore-lib)
 [![Documentation Status](https://readthedocs.org/projects/metastore-lib/badge/?version=latest)](https://metastore-lib.readthedocs.io/en/latest/?badge=latest)
 
-A Python library for abstracting metadata storage for [datapackage.json][1]
-packages. 
+A Python library providing a standard "MetaStore" interface for metadata storage. It includes support for metadata versioning (revisioning) a la Git. Designed around pluggable backends it comes with a fully implemented backends to GitHub and the Filesystem. Originally designed for dataset metadata it can be used for any kind of metadata.
 
-Full Documentation
-------------------
-While this README provides some basic information on how to get started, the 
+## Features
+
+* Simple and lightweight (minimal dependencies)
+* Well defined abstract interface: create, delete, fetch etc
+* Support for [versioning/revisioning][ver] e.g. `fetch(dataset_id, revision_id)` plus versioning specific items such as revisions and releases (tags)
+* Pluggable backends with out of the box support for GitHub and Filesystem
+
+[ver]: https://tech.datopian.com/versioning/
+
+
+## Full Documentation
+
+This README provides some basic information on how to get started. However, the 
 most up-to-date and comprehesive documentation for `mestastore-lib` is 
 [available at metastore-lib.readthedocs.io](https://metastore-lib.readthedocs.io/en/latest).
 
-Installation
-------------
+## Installation
+
 The easiest way to install the latest stable version of metastore-lib into
 your Python environment is via `pip`:
 
     pip install metastore-lib
 
-Quick Start
------------
+## Quick Start
 
-#### Instantiating a backend
+### Instantiating a backend
 
 To use the library after you have installed it, first instantiate a storage
 instance:
@@ -42,7 +50,7 @@ metastore = create_metastore('github', **config)
 metastore = GitHubStorage(**config)
 ```
 
-#### Storing a dataset (creating a new package)
+### Storing a dataset (creating a new package)
  
 Then use the storage instance to store a dataset:
 
@@ -74,7 +82,7 @@ class PackageRevisionInfo:
                      ]}
 ```
 
-#### Updating a dataset
+### Updating a dataset
 
 To update the same package:
 
@@ -90,7 +98,7 @@ conflicting; Specifying `base_revision` will ensure you are changing based on
 the latest revision of the package, and if not a `ConflictException` will be 
 raised. 
 
-#### Listing Dataset Revisions
+### Listing Dataset Revisions
 
 Now you can get a list of all revisions of the package (there should be exactly two):
 
@@ -109,7 +117,7 @@ class PackageRevisionInfo:
     
 ```
 
-#### Fetching a Dataset Revision
+### Fetching a Dataset Revision
 
 Now that we have two different revisions of the dataset, we can fetch a 
 specific revision of the metadata:
@@ -129,7 +137,7 @@ This returns a `RevisionInfo` object for the requested package / revision.
 Note that the `revision` parameter is optional, and if omitted the latest 
 revision will be fetched. 
 
-#### Creating a Tag
+### Creating a Tag
 
 Once a revision has been created, you can tag the revision to give it a 
 meaningful name:
@@ -143,7 +151,7 @@ tag_info = metastore.tag_create(package_id,
 This will return a new `TagInfo` object, with the `name` attribute set to
 `'ver-1.0.1'`. 
 
-#### Listing Tags 
+### Listing Tags 
 
 To get a list of all tags for a package:
 
@@ -154,7 +162,7 @@ tags = metastore.tag_list(package_id)
 This will return a list of `TagInfo` objects, each pointing to a specific
 tagged revision. 
 
-### A Note on Package Identifiers
+## A Note on Package Identifiers
 
 Package Identifiers (e.g. the `package_id` in the example above) are strings
 and are, as far as `metastore` is concerned, opaque. However, they may still
@@ -168,8 +176,8 @@ Other backends may expect you to use UUID type identifiers.
 It is up to the code using the `metastore` library to be able to compose the 
 right identifiers. 
 
-Using the Filesystem Backend for Testing
-----------------------------------------
+## Using the Filesystem Backend for Testing
+
 For testing and quick prototyping purposes, this library offers a special 
 `filesystem` backend, which can be used to save versioned datapackage 
 information on the file system, in memory or on virtual file system. 
@@ -196,11 +204,11 @@ The `FilesystemStorage` constructor takes a single argument, which is a
 Beyond this, all API is exactly the same as with other backends. 
 
 
-License
--------
-Copyright (C) 2020, Viderum, Inc. 
+## License
+
+Copyright (C) 2020, Datopian (Viderum, Inc). 
 
 metastore-lib is free / open source software and is distributed under the terms of 
 the MIT license. See [LICENSE](LICENSE) for details.  
 
- [1]: http://specs.frictionlessdata.io/data-package/
+[1]: http://specs.frictionlessdata.io/data-package/
