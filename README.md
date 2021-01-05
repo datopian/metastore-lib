@@ -1,5 +1,4 @@
-metastore-lib: metadata storage library for Frictionless Data (Data Packages)
-=============================================================================
+# metastore-lib: metadata storage library with versioning
 
 [![Build Status](https://travis-ci.org/datopian/metastore-lib.svg?branch=master)](https://travis-ci.org/datopian/metastore-lib)
 [![Maintainability](https://api.codeclimate.com/v1/badges/f53acd8aa367512130c3/maintainability)](https://codeclimate.com/github/datopian/metastore-lib/maintainability)
@@ -7,14 +6,20 @@ metastore-lib: metadata storage library for Frictionless Data (Data Packages)
 [![PyPI version](https://badge.fury.io/py/metastore-lib.svg)](https://badge.fury.io/py/metastore-lib)
 [![Documentation Status](https://readthedocs.org/projects/metastore-lib/badge/?version=latest)](https://metastore-lib.readthedocs.io/en/latest/?badge=latest)
 
-A Python library providing a standard "MetaStore" interface for metadata storage. It includes support for metadata versioning (revisioning) a la Git. Designed around pluggable backends it comes with a fully implemented backends to GitHub and the Filesystem. Originally designed for dataset metadata it can be used for any kind of metadata.
+A standard interface to metadata storage (MetaStores) with multiple bakend implementations including GitHub. Written in Python (there's also a [JS version][js]). Versioning (revisioning) support is built-in e.g. you can do:
+
+`fetch(object, revision) => metadata at that revision of the object`
+
+Designed around pluggable backends it comes with a full implementations for GitHub and the Filesystem. Though originally designed for datasets it can be used for storing any kind of metadata.
+
+[js]: https://github.com/datopian/metastore-lib-js
 
 ## Features
 
 * Simple and lightweight (minimal dependencies)
-* Well defined abstract interface: create, delete, fetch etc
+* Well defined interface honed over the years: create, delete, fetch etc
 * Support for [versioning/revisioning][ver] e.g. `fetch(dataset_id, revision_id)` plus versioning specific items such as revisions and releases (tags)
-* Pluggable backends with out of the box support for GitHub and Filesystem
+* Pluggable backends with support for GitHub and Filesystem out of the box 
 
 [ver]: https://tech.datopian.com/versioning/
 
