@@ -8,7 +8,7 @@
 
 A standard interface to metadata storage (MetaStores) with multiple bakend implementations including GitHub. Written in Python (there's also a [JS version][js]). Versioning (revisioning) support is built-in e.g. you can do:
 
-`fetch(object, revision) => metadata at that revision of the object`
+`fetch(objectId, revision) => metadata at that revision of the object`
 
 Designed around pluggable backends it comes with a full implementations for GitHub and the Filesystem. Though originally designed for datasets it can be used for storing any kind of metadata.
 
