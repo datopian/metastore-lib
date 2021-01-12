@@ -6,11 +6,7 @@
 [![PyPI version](https://badge.fury.io/py/metastore-lib.svg)](https://badge.fury.io/py/metastore-lib)
 [![Documentation Status](https://readthedocs.org/projects/metastore-lib/badge/?version=latest)](https://metastore-lib.readthedocs.io/en/latest/?badge=latest)
 
-A standard interface to metadata storage (MetaStores) with multiple bakend implementations including GitHub. Written in Python (there's also a [JS version][js]). Versioning (revisioning) support is built-in e.g. you can do:
-
-`fetch(objectId, revision) => metadata at that revision of the object`
-
-Designed around pluggable backends it comes with a full implementations for GitHub and the Filesystem. Though originally designed for datasets it can be used for storing any kind of metadata.
+Library for storing (dataset) metadata, with versioning support and pluggable backends including GitHub. Written in Python (there's also a [JS version][js]). Designed around pluggable backends it comes with a full implementations for GitHub and the Filesystem. Originally designed for datasets it can be used for storing any kind of metadata. Versioning (revisioning) support is built-in e.g. you can do: `fetch(objectId, revision) => metadata at that revision of the object`
 
 [js]: https://github.com/datopian/metastore-lib-js
 
