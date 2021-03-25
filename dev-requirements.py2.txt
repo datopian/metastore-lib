@@ -4,45 +4,145 @@
 #
 #     pip-compile --no-index --output-file=dev-requirements.py2.txt dev-requirements.in
 #
-atomicwrites==1.4.0       # via pytest
-attrs==19.3.0             # via pytest
-backports.functools-lru-cache==1.6.1  # via isort
-click==7.1.2              # via pip-tools
-configparser==4.0.2       # via flake8, importlib-metadata
-contextlib2==0.6.0.post1  # via importlib-metadata, vcrpy, zipp
-coverage==5.1             # via pytest-cov
-enum34==1.1.10            # via flake8
-flake8==3.8.2             # via pytest-flake8
-funcsigs==1.0.2           # via mock, pytest
-functools32==3.2.3.post2  # via flake8
-futures==3.3.0            # via isort
-importlib-metadata==1.6.0  # via flake8, pluggy, pytest
-isort==4.3.21             # via pytest-isort
-mccabe==0.6.1             # via flake8
-mock==3.0.5               # via vcrpy
-more-itertools==5.0.0     # via pytest
-packaging==20.4           # via pytest
-pathlib2==2.3.5           # via importlib-metadata, pytest
-pip-tools==5.1.2          # via -r dev-requirements.in
-pluggy==0.13.1            # via pytest
-py==1.8.1                 # via pytest
-pycodestyle==2.6.0        # via flake8
-pyflakes==2.2.0           # via flake8
-pyparsing==2.4.7          # via packaging
-pytest-cov==2.9.0         # via -r dev-requirements.in
-pytest-env==0.6.2         # via -r dev-requirements.in
-pytest-flake8==1.0.6      # via -r dev-requirements.in
-pytest-isort==0.3.1       # via -r dev-requirements.in
-pytest-vcr==1.0.2         # via -r dev-requirements.in
-pytest==4.6.10            # via -r dev-requirements.in, pytest-cov, pytest-env, pytest-flake8, pytest-isort, pytest-vcr
-pyyaml==5.3.1             # via vcrpy
-scandir==1.10.0           # via pathlib2
-six==1.15.0               # via mock, more-itertools, packaging, pathlib2, pip-tools, pytest, vcrpy
-typing==3.7.4.1           # via flake8
-vcrpy==3.0.0              # via pytest-vcr
-wcwidth==0.1.9            # via pytest
-wrapt==1.12.1             # via vcrpy
-zipp==1.2.0               # via importlib-metadata
+alabaster==0.7.12
+    # via sphinx
+atomicwrites==1.4.0
+    # via pytest
+attrs==19.3.0
+    # via
+    #   pytest
+    #   pytest-mypy
+babel==2.9.0
+    # via sphinx
+certifi==2020.12.5
+    # via requests
+chardet==4.0.0
+    # via requests
+click==7.1.2
+    # via pip-tools
+commonmark==0.9.1
+    # via recommonmark
+coverage==5.1
+    # via pytest-cov
+docutils==0.16
+    # via
+    #   recommonmark
+    #   sphinx
+filelock==3.0.12
+    # via pytest-mypy
+flake8==3.8.2
+    # via pytest-flake8
+idna==2.10
+    # via
+    #   requests
+    #   yarl
+imagesize==1.2.0
+    # via sphinx
+isort==4.3.21
+    # via pytest-isort
+jinja2==2.11.3
+    # via sphinx
+markupsafe==1.1.1
+    # via jinja2
+mccabe==0.6.1
+    # via flake8
+more-itertools==5.0.0
+    # via pytest
+multidict==5.1.0
+    # via yarl
+mypy-extensions==0.4.3
+    # via mypy
+mypy==0.812
+    # via pytest-mypy
+packaging==20.4
+    # via
+    #   pytest
+    #   sphinx
+pip-tools==5.1.2
+    # via -r dev-requirements.in
+pluggy==0.13.1
+    # via pytest
+py==1.8.1
+    # via pytest
+pycodestyle==2.6.0
+    # via flake8
+pyflakes==2.2.0
+    # via flake8
+pygments==2.8.1
+    # via sphinx
+pyparsing==2.4.7
+    # via packaging
+pytest-cov==2.9.0
+    # via -r dev-requirements.in
+pytest-env==0.6.2
+    # via -r dev-requirements.in
+pytest-flake8==1.0.6
+    # via -r dev-requirements.in
+pytest-isort==0.3.1
+    # via -r dev-requirements.in
+pytest-mypy==0.8.1 ; python_version > "3.5"
+    # via -r dev-requirements.in
+pytest-vcr==1.0.2
+    # via -r dev-requirements.in
+pytest==4.6.10
+    # via
+    #   -r dev-requirements.in
+    #   pytest-cov
+    #   pytest-env
+    #   pytest-flake8
+    #   pytest-isort
+    #   pytest-mypy
+    #   pytest-vcr
+pytz==2021.1
+    # via babel
+pyyaml==5.4
+    # via vcrpy
+recommonmark==0.7.1 ; python_version >= "3.5"
+    # via -r dev-requirements.in
+requests==2.25.1
+    # via sphinx
+six==1.15.0
+    # via
+    #   more-itertools
+    #   packaging
+    #   pip-tools
+    #   pytest
+    #   vcrpy
+snowballstemmer==2.1.0
+    # via sphinx
+sphinx-autodoc-typehints[type_comments]==1.10.3 ; python_version >= "3.5"
+    # via -r dev-requirements.in
+sphinx==3.5.3
+    # via
+    #   recommonmark
+    #   sphinx-autodoc-typehints
+sphinxcontrib-applehelp==1.0.2
+    # via sphinx
+sphinxcontrib-devhelp==1.0.2
+    # via sphinx
+sphinxcontrib-htmlhelp==1.0.3
+    # via sphinx
+sphinxcontrib-jsmath==1.0.1
+    # via sphinx
+sphinxcontrib-qthelp==1.0.3
+    # via sphinx
+sphinxcontrib-serializinghtml==1.1.4
+    # via sphinx
+typed-ast==1.4.2
+    # via mypy
+typing-extensions==3.7.4.3
+    # via mypy
+urllib3==1.26.4
+    # via requests
+vcrpy==3.0.0
+    # via pytest-vcr
+wcwidth==0.1.9
+    # via pytest
+wrapt==1.12.1
+    # via vcrpy
+yarl==1.6.3
+    # via vcrpy
 
 # The following packages are considered to be unsafe in a requirements file:
 # pip
+# setuptools
