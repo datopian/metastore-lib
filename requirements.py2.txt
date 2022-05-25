@@ -4,25 +4,44 @@
 #
 #    pip-compile --no-index --output-file=requirements.py2.txt requirements.in
 #
-appdirs==1.4.4            # via fs
-backports.os==0.1.1       # via fs
-certifi==2020.4.5.1       # via requests
-chardet==3.0.4            # via requests
-deprecated==1.2.10        # via pygithub
-enum34==1.1.10            # via fs
-fs==2.4.11                # via -r requirements.in
-future==0.18.2            # via backports.os
-idna==2.9                 # via requests
-pygithub==1.45            # via -r requirements.in
-pyjwt==1.7.1              # via pygithub
-python-dateutil==2.8.1    # via -r requirements.in
-pytz==2020.1              # via -r requirements.in, fs
-requests==2.23.0          # via pygithub
-six==1.15.0               # via -r requirements.in, fs, pygithub, python-dateutil
-typing-extensions==3.7.4.2  # via -r requirements.in
-typing==3.7.4.1           # via -r requirements.in, fs, typing-extensions
-urllib3==1.25.9           # via requests
-wrapt==1.12.1             # via deprecated
+appdirs==1.4.4
+    # via fs
+certifi==2020.4.5.1
+    # via requests
+chardet==3.0.4
+    # via requests
+deprecated==1.2.10
+    # via pygithub
+fs==2.4.11
+    # via -r requirements.in
+idna==2.9
+    # via requests
+pygithub==1.45
+    # via -r requirements.in
+pyjwt==2.4.0
+    # via pygithub
+python-dateutil==2.8.1
+    # via -r requirements.in
+pytz==2020.1
+    # via
+    #   -r requirements.in
+    #   fs
+requests==2.23.0
+    # via pygithub
+six==1.15.0
+    # via
+    #   -r requirements.in
+    #   fs
+    #   pygithub
+    #   python-dateutil
+typing==3.7.4.1
+    # via -r requirements.in
+typing-extensions==3.7.4.2
+    # via -r requirements.in
+urllib3==1.25.9
+    # via requests
+wrapt==1.12.1
+    # via deprecated
 
 # The following packages are considered to be unsafe in a requirements file:
 # setuptools
